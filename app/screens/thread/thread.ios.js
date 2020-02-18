@@ -2,20 +2,19 @@
 // See LICENSE.txt for license information.
 
 import React from 'react';
-
 import {View} from 'react-native';
 import {KeyboardTrackingView} from 'react-native-keyboard-tracking-view';
 
 import {getLastPostIndex} from 'mattermost-redux/utils/post_list';
 
 import Autocomplete, {AUTOCOMPLETE_MAX_HEIGHT} from 'app/components/autocomplete';
-import FileUploadPreview from 'app/components/file_upload_preview';
 import Loading from 'app/components/loading';
 import PostList from 'app/components/post_list';
 import PostTextbox from 'app/components/post_textbox';
 import SafeAreaView from 'app/components/safe_area_view';
 import StatusBar from 'app/components/status_bar';
 import {THREAD} from 'app/constants/screen';
+import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 
 import ThreadBase from './thread_base';
 
@@ -29,10 +28,10 @@ export default class ThreadIOS extends ThreadBase {
         const {
             channelId,
             myMember,
-            navigator,
             postIds,
             rootId,
             channelIsArchived,
+            theme,
         } = this.props;
 
         let content;
@@ -47,15 +46,11 @@ export default class ThreadIOS extends ThreadBase {
                         lastPostIndex={getLastPostIndex(postIds)}
                         currentUserId={myMember && myMember.user_id}
                         lastViewedAt={this.state.lastViewedAt}
-                        navigator={navigator}
                         onPostPress={this.hideKeyboard}
                         location={THREAD}
                         scrollViewNativeID={SCROLLVIEW_NATIVE_ID}
                     />
                     <View nativeID={ACCESSORIES_CONTAINER_NATIVE_ID}>
-                        <FileUploadPreview
-                            rootId={rootId}
-                        />
                         <Autocomplete
                             maxHeight={AUTOCOMPLETE_MAX_HEIGHT}
                             onChangeText={this.handleAutoComplete}
@@ -73,26 +68,31 @@ export default class ThreadIOS extends ThreadBase {
                     accessoriesContainerID={ACCESSORIES_CONTAINER_NATIVE_ID}
                 >
                     <PostTextbox
-                        ref={this.postTextbox}
-                        channelIsArchived={channelIsArchived}
-                        rootId={rootId}
                         channelId={channelId}
-                        navigator={navigator}
-                        onCloseChannel={this.onCloseChannel}
+                        channelIsArchived={channelIsArchived}
                         cursorPositionEvent={THREAD_POST_TEXTBOX_CURSOR_CHANGE}
+                        onCloseChannel={this.onCloseChannel}
+                        ref={this.postTextbox}
+                        rootId={rootId}
+                        screenId={this.props.componentId}
                         valueEvent={THREAD_POST_TEXTBOX_VALUE_CHANGE}
                     />
                 </KeyboardTrackingView>
             );
         } else {
             content = (
-                <Loading/>
+                <Loading color={theme.centerChannelColor}/>
             );
         }
 
+        const style = getStyleSheet(theme);
         return (
             <React.Fragment>
-                <SafeAreaView excludeHeader={true}>
+                <SafeAreaView
+                    excludeHeader={true}
+                    forceInsets={true}
+                >
+                    <View style={style.separator}/>
                     <StatusBar/>
                     {content}
                 </SafeAreaView>
@@ -101,3 +101,10 @@ export default class ThreadIOS extends ThreadBase {
         );
     }
 }
+
+const getStyleSheet = makeStyleSheetFromTheme((theme) => ({
+    separator: {
+        backgroundColor: changeOpacity(theme.centerChannelColor, 0.2),
+        height: 1,
+    },
+}));

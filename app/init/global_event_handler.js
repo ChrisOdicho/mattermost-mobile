@@ -2,26 +2,35 @@
 // See LICENSE.txt for license information.
 
 import {Alert, AppState, Dimensions, Linking, NativeModules, Platform} from 'react-native';
+import CookieManager from 'react-native-cookies';
 import DeviceInfo from 'react-native-device-info';
-import semver from 'semver';
+import RNFetchBlob from 'rn-fetch-blob';
+import semver from 'semver/preload';
 
 import {setAppState, setServerVersion} from 'mattermost-redux/actions/general';
 import {loadMe, logout} from 'mattermost-redux/actions/users';
+import {autoUpdateTimezone} from 'mattermost-redux/actions/timezone';
 import {close as closeWebSocket} from 'mattermost-redux/actions/websocket';
 import {Client4} from 'mattermost-redux/client';
 import {General} from 'mattermost-redux/constants';
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
+import {getCurrentChannelId} from 'mattermost-redux/selectors/entities/channels';
+import {getCurrentUserId} from 'mattermost-redux/selectors/entities/users';
+import {isTimezoneEnabled} from 'mattermost-redux/selectors/entities/timezone';
 
 import {setDeviceDimensions, setDeviceOrientation, setDeviceAsTablet, setStatusBarHeight} from 'app/actions/device';
 import {selectDefaultChannel} from 'app/actions/views/channel';
+import {showOverlay} from 'app/actions/navigation';
 import {loadConfigAndLicense, setDeepLinkURL, startDataCleanup} from 'app/actions/views/root';
-import {NavigationTypes} from 'app/constants';
-import {getTranslations} from 'app/i18n';
+import {NavigationTypes, ViewTypes} from 'app/constants';
+import {getTranslations, resetMomentLocale} from 'app/i18n';
+import mattermostBucket from 'app/mattermost_bucket';
 import mattermostManaged from 'app/mattermost_managed';
 import PushNotifications from 'app/push_notifications';
 import {getCurrentLocale} from 'app/selectors/i18n';
 import {t} from 'app/utils/i18n';
 import {deleteFileCache} from 'app/utils/file';
+import {getDeviceTimezoneAsync} from 'app/utils/timezone';
 
 import LocalConfig from 'assets/config';
 
@@ -44,6 +53,9 @@ class GlobalEventHandler {
     }
 
     appActive = async () => {
+        this.turnOnInAppNotificationHandling();
+        this.setUserTimezone();
+
         // if the app is being controlled by an EMM provider
         if (emmProvider.enabled && emmProvider.inAppPinCode) {
             const authExpired = (Date.now() - emmProvider.inBackgroundSince) >= PROMPT_IN_APP_PIN_CODE_AFTER;
@@ -53,10 +65,12 @@ class GlobalEventHandler {
             await emmProvider.handleAuthentication(this.store, prompt);
         }
 
-        emmProvider.inBackgroundSince = null;
+        emmProvider.inBackgroundSince = null; /* eslint-disable-line require-atomic-updates */
     };
 
     appInactive = () => {
+        this.turnOffInAppNotificationHandling();
+
         const {dispatch} = this.store;
 
         // When the app is sent to the background we set the time when that happens
@@ -68,7 +82,11 @@ class GlobalEventHandler {
 
     configure = (opts) => {
         this.store = opts.store;
-        this.launchEntry = opts.launchEntry;
+        this.launchApp = opts.launchApp;
+
+        // onAppStateChange may be called by the AppState listener before we
+        // configure the global event handler so we manually call it here
+        this.onAppStateChange('active');
 
         const window = Dimensions.get('window');
         this.onOrientationChange({window});
@@ -80,7 +98,7 @@ class GlobalEventHandler {
             StatusBarManager.getHeight(
                 (data) => {
                     this.onStatusBarHeightChange(data.height);
-                }
+                },
             );
         }
 
@@ -106,12 +124,12 @@ class GlobalEventHandler {
 
         if (this.store) {
             this.store.dispatch(setAppState(isActive));
-        }
 
-        if (isActive && emmProvider.previousAppState === 'background') {
-            this.appActive();
-        } else if (isBackground) {
-            this.appInactive();
+            if (isActive && (!emmProvider.enabled || emmProvider.previousAppState === 'background')) {
+                this.appActive();
+            } else if (isBackground) {
+                this.appInactive();
+            }
         }
 
         emmProvider.previousAppState = appState;
@@ -133,14 +151,39 @@ class GlobalEventHandler {
     onLogout = async () => {
         this.store.dispatch(closeWebSocket(false));
         this.store.dispatch(setServerVersion(''));
-        deleteFileCache();
         removeAppCredentials();
+        deleteFileCache();
+        resetMomentLocale();
 
-        PushNotifications.setApplicationIconBadgeNumber(0);
-        PushNotifications.cancelAllLocalNotifications(); // TODO: Only cancel the notification that belongs to this server
+        // TODO: Handle when multi-server support is added
+        CookieManager.clearAll(Platform.OS === 'ios');
+        PushNotifications.clearNotifications();
+        const cacheDir = RNFetchBlob.fs.dirs.CacheDir;
+        const mainPath = cacheDir.split('/').slice(0, -1).join('/');
 
-        if (this.launchEntry) {
-            this.launchEntry();
+        try {
+            await RNFetchBlob.fs.unlink(cacheDir);
+        } catch (e) {
+            console.log('Failed to remove cache folder', e); //eslint-disable-line no-console
+        }
+
+        mattermostBucket.removePreference('cert');
+        if (Platform.OS === 'ios') {
+            mattermostBucket.removeFile('entities');
+        } else {
+            const cookies = await RNFetchBlob.fs.exists(`${mainPath}/app_webview/Cookies`);
+            const cookiesJ = await RNFetchBlob.fs.exists(`${mainPath}/app_webview/Cookies-journal`);
+            if (cookies) {
+                RNFetchBlob.fs.unlink(`${mainPath}/app_webview/Cookies`);
+            }
+
+            if (cookiesJ) {
+                RNFetchBlob.fs.unlink(`${mainPath}/app_webview/Cookies-journal`);
+            }
+        }
+
+        if (this.launchApp) {
+            this.launchApp();
         }
     };
 
@@ -170,20 +213,21 @@ class GlobalEventHandler {
             StatusBarManager.getHeight(
                 (data) => {
                     this.onStatusBarHeightChange(data.height);
-                }
+                },
             );
         }
 
-        if (this.launchEntry) {
+        if (this.launchApp) {
             const credentials = await getAppCredentials();
-            this.launchEntry(credentials);
+            this.launchApp(credentials);
         }
     };
 
     onServerVersionChanged = async (serverVersion) => {
         const {dispatch, getState} = this.store;
         const state = getState();
-        const version = serverVersion.match(/^[0-9]*.[0-9]*.[0-9]*(-[a-zA-Z0-9.-]*)?/g)[0];
+        const match = serverVersion && serverVersion.match(/^[0-9]*.[0-9]*.[0-9]*(-[a-zA-Z0-9.-]*)?/g);
+        const version = match && match[0];
         const locale = getCurrentLocale(state);
         const translations = getTranslations(locale);
 
@@ -196,7 +240,7 @@ class GlobalEventHandler {
                         text: translations[t('mobile.server_upgrade.button')],
                         onPress: this.serverUpgradeNeeded,
                     }],
-                    {cancelable: false}
+                    {cancelable: false},
                 );
             } else if (state.entities.users && state.entities.users.currentUserId) {
                 dispatch(setServerVersion(serverVersion));
@@ -219,13 +263,48 @@ class GlobalEventHandler {
 
         dispatch(setServerVersion(''));
         Client4.serverVersion = '';
-        PushNotifications.setApplicationIconBadgeNumber(0);
-        PushNotifications.cancelAllLocalNotifications(); // TODO: Only cancel the notification that belongs to this server
 
         const credentials = await getAppCredentials();
 
         if (credentials) {
             dispatch(logout());
+        }
+    };
+
+    turnOnInAppNotificationHandling = () => {
+        EventEmitter.on(ViewTypes.NOTIFICATION_IN_APP, this.handleInAppNotification);
+    }
+
+    turnOffInAppNotificationHandling = () => {
+        EventEmitter.off(ViewTypes.NOTIFICATION_IN_APP, this.handleInAppNotification);
+    }
+
+    handleInAppNotification = (notification) => {
+        const {data} = notification;
+        const {getState} = this.store;
+        const state = getState();
+        const currentChannelId = getCurrentChannelId(state);
+
+        if (data && data.channel_id !== currentChannelId) {
+            const screen = 'Notification';
+            const passProps = {
+                notification,
+            };
+
+            EventEmitter.emit(NavigationTypes.NAVIGATION_SHOW_OVERLAY);
+            showOverlay(screen, passProps);
+        }
+    };
+
+    setUserTimezone = async () => {
+        const {dispatch, getState} = this.store;
+        const state = getState();
+        const currentUserId = getCurrentUserId(state);
+
+        const enableTimezone = isTimezoneEnabled(state);
+        if (enableTimezone && currentUserId) {
+            const timezone = await getDeviceTimezoneAsync();
+            dispatch(autoUpdateTimezone(timezone));
         }
     };
 }

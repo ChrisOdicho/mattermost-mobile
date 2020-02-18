@@ -33,16 +33,14 @@ const config = {
                     moduleMap[resolve(realPath)] = true;
                 }
             });
+
             return {
                 preloadedModules: moduleMap,
-                transform: {
-                    inlineRequires: {
-                        blacklist: moduleMap,
-                    },
-                },
+                transform: {},
             };
         },
     },
+    maxWorkers: 4,
 };
 
 module.exports = config;

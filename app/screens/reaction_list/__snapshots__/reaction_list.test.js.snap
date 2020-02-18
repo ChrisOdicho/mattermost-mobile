@@ -13,6 +13,35 @@ exports[`ReactionList should match snapshot 1`] = `
     headerHeight={37.5}
     initialPosition={0.55}
     onRequestClose={[Function]}
+    theme={
+      Object {
+        "awayIndicator": "#ffbc42",
+        "buttonBg": "#166de0",
+        "buttonColor": "#ffffff",
+        "centerChannelBg": "#ffffff",
+        "centerChannelColor": "#3d3c40",
+        "codeTheme": "github",
+        "dndIndicator": "#f74343",
+        "errorTextColor": "#fd5960",
+        "linkColor": "#2389d7",
+        "mentionBg": "#ffffff",
+        "mentionBj": "#ffffff",
+        "mentionColor": "#145dbf",
+        "mentionHighlightBg": "#ffe577",
+        "mentionHighlightLink": "#166de0",
+        "newMessageSeparator": "#ff8800",
+        "onlineIndicator": "#06d6a0",
+        "sidebarBg": "#145dbf",
+        "sidebarHeaderBg": "#1153ab",
+        "sidebarHeaderTextColor": "#ffffff",
+        "sidebarText": "#ffffff",
+        "sidebarTextActiveBorder": "#579eff",
+        "sidebarTextActiveColor": "#ffffff",
+        "sidebarTextHoverBg": "#4578bf",
+        "sidebarUnreadText": "#ffffff",
+        "type": "Mattermost",
+      }
+    }
   >
     <View
       style={
@@ -22,25 +51,8 @@ exports[`ReactionList should match snapshot 1`] = `
         }
       }
     >
-      <ReactionRow
+      <Connect(ReactionRow)
         emojiName="+1"
-        navigator={
-          Object {
-            "setOnNavigatorEvent": [MockFunction] {
-              "calls": Array [
-                Array [
-                  [Function],
-                ],
-              ],
-              "results": Array [
-                Object {
-                  "type": "return",
-                  "value": undefined,
-                },
-              ],
-            },
-          }
-        }
         teammateNameDisplay="username"
         theme={
           Object {
@@ -53,6 +65,7 @@ exports[`ReactionList should match snapshot 1`] = `
             "dndIndicator": "#f74343",
             "errorTextColor": "#fd5960",
             "linkColor": "#2389d7",
+            "mentionBg": "#ffffff",
             "mentionBj": "#ffffff",
             "mentionColor": "#145dbf",
             "mentionHighlightBg": "#ffe577",
@@ -94,25 +107,8 @@ exports[`ReactionList should match snapshot 1`] = `
         }
       }
     >
-      <ReactionRow
+      <Connect(ReactionRow)
         emojiName="smile"
-        navigator={
-          Object {
-            "setOnNavigatorEvent": [MockFunction] {
-              "calls": Array [
-                Array [
-                  [Function],
-                ],
-              ],
-              "results": Array [
-                Object {
-                  "type": "return",
-                  "value": undefined,
-                },
-              ],
-            },
-          }
-        }
         teammateNameDisplay="username"
         theme={
           Object {
@@ -125,6 +121,7 @@ exports[`ReactionList should match snapshot 1`] = `
             "dndIndicator": "#f74343",
             "errorTextColor": "#fd5960",
             "linkColor": "#2389d7",
+            "mentionBg": "#ffffff",
             "mentionBj": "#ffffff",
             "mentionColor": "#145dbf",
             "mentionHighlightBg": "#ffe577",
@@ -172,25 +169,8 @@ Array [
       }
     }
   >
-    <ReactionRow
+    <Connect(ReactionRow)
       emojiName="+1"
-      navigator={
-        Object {
-          "setOnNavigatorEvent": [MockFunction] {
-            "calls": Array [
-              Array [
-                [Function],
-              ],
-            ],
-            "results": Array [
-              Object {
-                "type": "return",
-                "value": undefined,
-              },
-            ],
-          },
-        }
-      }
       teammateNameDisplay="username"
       theme={
         Object {
@@ -203,6 +183,7 @@ Array [
           "dndIndicator": "#f74343",
           "errorTextColor": "#fd5960",
           "linkColor": "#2389d7",
+          "mentionBg": "#ffffff",
           "mentionBj": "#ffffff",
           "mentionColor": "#145dbf",
           "mentionHighlightBg": "#ffe577",
@@ -244,25 +225,8 @@ Array [
       }
     }
   >
-    <ReactionRow
+    <Connect(ReactionRow)
       emojiName="smile"
-      navigator={
-        Object {
-          "setOnNavigatorEvent": [MockFunction] {
-            "calls": Array [
-              Array [
-                [Function],
-              ],
-            ],
-            "results": Array [
-              Object {
-                "type": "return",
-                "value": undefined,
-              },
-            ],
-          },
-        }
-      }
       teammateNameDisplay="username"
       theme={
         Object {
@@ -275,6 +239,7 @@ Array [
           "dndIndicator": "#f74343",
           "errorTextColor": "#fd5960",
           "linkColor": "#2389d7",
+          "mentionBg": "#ffffff",
           "mentionBj": "#ffffff",
           "mentionColor": "#145dbf",
           "mentionHighlightBg": "#ffe577",

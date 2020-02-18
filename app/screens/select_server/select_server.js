@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {PureComponent} from 'react';
+import {Navigation} from 'react-native-navigation';
 import PropTypes from 'prop-types';
 import {intlShape} from 'react-intl';
 import {
@@ -11,6 +12,7 @@ import {
     Keyboard,
     KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
     StatusBar,
     StyleSheet,
     Text,
@@ -20,6 +22,8 @@ import {
 } from 'react-native';
 import Button from 'react-native-button';
 import RNFetchBlob from 'rn-fetch-blob';
+
+import merge from 'deepmerge';
 
 import {Client4} from 'mattermost-redux/client';
 
@@ -33,6 +37,8 @@ import {isValidUrl, stripTrailingSlashes} from 'app/utils/url';
 import {preventDoubleTap} from 'app/utils/tap';
 import tracker from 'app/utils/time_tracker';
 import {t} from 'app/utils/i18n';
+import {changeOpacity} from 'app/utils/theme';
+import {resetToChannel, goToScreen} from 'app/actions/navigation';
 
 import telemetry from 'app/telemetry';
 
@@ -58,24 +64,12 @@ export default class SelectServer extends PureComponent {
         latestVersion: PropTypes.string,
         license: PropTypes.object,
         minVersion: PropTypes.string,
-        navigator: PropTypes.object,
         serverUrl: PropTypes.string.isRequired,
-        theme: PropTypes.object,
     };
 
     static contextTypes = {
         intl: intlShape.isRequired,
     };
-
-    static getDerivedStateFromProps(props, state) {
-        if (props.serverUrl && !state.url) {
-            return {
-                url: props.serverUrl,
-            };
-        }
-
-        return null;
-    }
 
     constructor(props) {
         super(props);
@@ -91,6 +85,8 @@ export default class SelectServer extends PureComponent {
     }
 
     componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+
         const {allowOtherServers, serverUrl} = this.props;
         if (!allowOtherServers && serverUrl) {
             // If the app is managed or AutoSelectServerUrl is true in the Config, the server url is set and the user can't change it
@@ -103,7 +99,6 @@ export default class SelectServer extends PureComponent {
         }
 
         this.certificateListener = DeviceEventEmitter.addListener('RNFetchBlobCertificate', this.selectCertificate);
-        this.props.navigator.setOnNavigatorEvent(this.handleNavigatorEvent);
 
         telemetry.end(['start:select_server_screen']);
         telemetry.save();
@@ -113,24 +108,33 @@ export default class SelectServer extends PureComponent {
         if (this.state.connected && this.props.hasConfigAndLicense && !(prevState.connected && prevProps.hasConfigAndLicense)) {
             if (LocalConfig.EnableMobileClientUpgrade) {
                 this.props.actions.setLastUpgradeCheck();
-                const {currentVersion, minVersion, latestVersion} = prevProps;
+                const {currentVersion, minVersion, latestVersion} = this.props;
                 const upgradeType = checkUpgradeType(currentVersion, minVersion, latestVersion);
                 if (isUpgradeAvailable(upgradeType)) {
                     this.handleShowClientUpgrade(upgradeType);
                 } else {
-                    this.handleLoginOptions(prevProps);
+                    this.handleLoginOptions(this.props);
                 }
             } else {
-                this.handleLoginOptions(prevProps);
+                this.handleLoginOptions(this.props);
             }
         }
     }
 
     componentWillUnmount() {
-        this.certificateListener.remove();
         if (Platform.OS === 'android') {
             Keyboard.removeListener('keyboardDidHide', this.handleAndroidKeyboard);
         }
+
+        this.certificateListener.remove();
+
+        this.navigationEventListener.remove();
+    }
+
+    componentDidDisappear() {
+        this.setState({
+            connected: false,
+        });
     }
 
     blur = () => {
@@ -154,21 +158,17 @@ export default class SelectServer extends PureComponent {
         return stripTrailingSlashes(preUrl.protocol + '//' + preUrl.host + preUrl.pathname);
     };
 
-    goToNextScreen = (screen, title) => {
-        const {navigator, theme} = this.props;
-        navigator.push({
-            screen,
-            title,
-            animated: true,
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarHidden: LocalConfig.AutoSelectServerUrl,
-                disabledBackGesture: LocalConfig.AutoSelectServerUrl,
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
+    goToNextScreen = (screen, title, passProps = {}, navOptions = {}) => {
+        const defaultOptions = {
+            popGesture: !LocalConfig.AutoSelectServerUrl,
+            topBar: {
+                visible: !LocalConfig.AutoSelectServerUrl,
+                height: LocalConfig.AutoSelectServerUrl ? 0 : null,
             },
-        });
+        };
+        const options = merge(defaultOptions, navOptions);
+
+        goToScreen(screen, title, passProps, options);
     };
 
     handleAndroidKeyboard = () => {
@@ -254,38 +254,21 @@ export default class SelectServer extends PureComponent {
         }
     };
 
-    handleNavigatorEvent = (event) => {
-        switch (event.id) {
-        case 'didDisappear':
-            this.setState({
-                connected: false,
-            });
-            break;
-        }
-    };
-
     handleShowClientUpgrade = (upgradeType) => {
         const {formatMessage} = this.context.intl;
-        const {theme} = this.props;
+        const screen = 'ClientUpgrade';
+        const title = formatMessage({id: 'mobile.client_upgrade', defaultMessage: 'Client Upgrade'});
+        const passProps = {
+            closeAction: this.handleLoginOptions,
+            upgradeType,
+        };
+        const options = {
+            statusBar: {
+                visible: false,
+            },
+        };
 
-        this.props.navigator.push({
-            screen: 'ClientUpgrade',
-            title: formatMessage({id: 'mobile.client_upgrade', defaultMessage: 'Client Upgrade'}),
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarHidden: LocalConfig.AutoSelectServerUrl,
-                disabledBackGesture: LocalConfig.AutoSelectServerUrl,
-                statusBarHidden: true,
-                statusBarHideWithNavBar: true,
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-            },
-            passProps: {
-                closeAction: this.handleLoginOptions,
-                upgradeType,
-            },
-        });
+        this.goToNextScreen(screen, title, passProps, options);
     };
 
     handleTextChanged = (url) => {
@@ -297,28 +280,13 @@ export default class SelectServer extends PureComponent {
     };
 
     loginWithCertificate = async () => {
-        const {navigator} = this.props;
-
         tracker.initialLoad = Date.now();
 
         await this.props.actions.login('credential', 'password');
         await this.props.actions.handleSuccessfulLogin();
         this.scheduleSessionExpiredNotification();
 
-        navigator.resetTo({
-            screen: 'Channel',
-            title: '',
-            animated: false,
-            backButtonTitle: '',
-            navigatorStyle: {
-                animated: true,
-                animationType: 'fade',
-                navBarHidden: true,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-                screenBackgroundColor: 'transparent',
-            },
-        });
+        resetToChannel();
     };
 
     pingServer = (url, retryWithHttp = true) => {
@@ -447,57 +415,65 @@ export default class SelectServer extends PureComponent {
         }
 
         return (
-            <KeyboardAvoidingView
-                behavior='padding'
+            <SafeAreaView
                 style={style.container}
-                keyboardVerticalOffset={0}
-                enabled={Platform.OS === 'ios'}
             >
-                <StatusBar barStyle={statusStyle}/>
-                <TouchableWithoutFeedback onPress={this.blur}>
-                    <View style={[GlobalStyles.container, GlobalStyles.signupContainer]}>
-                        <Image
-                            source={require('assets/images/logo.png')}
-                        />
-
-                        <View>
-                            <FormattedText
-                                style={[GlobalStyles.header, GlobalStyles.label]}
-                                id='mobile.components.select_server_view.enterServerUrl'
-                                defaultMessage='Enter Server URL'
+                <KeyboardAvoidingView
+                    behavior='padding'
+                    style={style.container}
+                    keyboardVerticalOffset={0}
+                    enabled={Platform.OS === 'ios'}
+                >
+                    <StatusBar barStyle={statusStyle}/>
+                    <TouchableWithoutFeedback
+                        onPress={this.blur}
+                        accessible={false}
+                    >
+                        <View style={[GlobalStyles.container, GlobalStyles.signupContainer]}>
+                            <Image
+                                source={require('assets/images/logo.png')}
                             />
+
+                            <View>
+                                <FormattedText
+                                    style={[GlobalStyles.header, GlobalStyles.label]}
+                                    id='mobile.components.select_server_view.enterServerUrl'
+                                    defaultMessage='Enter Server URL'
+                                />
+                            </View>
+                            <TextInput
+                                ref={this.inputRef}
+                                value={url}
+                                editable={!inputDisabled}
+                                onChangeText={this.handleTextChanged}
+                                onSubmitEditing={this.handleConnect}
+                                style={inputStyle}
+                                autoCapitalize='none'
+                                autoCorrect={false}
+                                keyboardType='url'
+                                placeholder={formatMessage({
+                                    id: 'mobile.components.select_server_view.siteUrlPlaceholder',
+                                    defaultMessage: 'https://mattermost.example.com',
+                                })}
+                                placeholderTextColor={changeOpacity('#000', 0.5)}
+                                returnKeyType='go'
+                                underlineColorAndroid='transparent'
+                                disableFullscreenUI={true}
+                            />
+                            <Button
+                                onPress={this.handleConnect}
+                                containerStyle={[GlobalStyles.signupButton, style.connectButton]}
+                            >
+                                {buttonIcon}
+                                <Text style={GlobalStyles.signupButtonText}>
+                                    {buttonText}
+                                </Text>
+                            </Button>
+                            <ErrorText error={error}/>
                         </View>
-                        <TextInput
-                            ref={this.inputRef}
-                            value={url}
-                            editable={!inputDisabled}
-                            onChangeText={this.handleTextChanged}
-                            onSubmitEditing={this.handleConnect}
-                            style={inputStyle}
-                            autoCapitalize='none'
-                            autoCorrect={false}
-                            keyboardType='url'
-                            placeholder={formatMessage({
-                                id: 'mobile.components.select_server_view.siteUrlPlaceholder',
-                                defaultMessage: 'https://mattermost.example.com',
-                            })}
-                            returnKeyType='go'
-                            underlineColorAndroid='transparent'
-                            disableFullscreenUI={true}
-                        />
-                        <Button
-                            onPress={this.handleConnect}
-                            containerStyle={[GlobalStyles.signupButton, style.connectButton]}
-                        >
-                            {buttonIcon}
-                            <Text style={GlobalStyles.signupButtonText}>
-                                {buttonText}
-                            </Text>
-                        </Button>
-                        <ErrorText error={error}/>
-                    </View>
-                </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
+                    </TouchableWithoutFeedback>
+                </KeyboardAvoidingView>
+            </SafeAreaView>
         );
     }
 }

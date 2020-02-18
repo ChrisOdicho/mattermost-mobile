@@ -9,7 +9,7 @@ import {makeGetChannel} from 'mattermost-redux/selectors/entities/channels';
 import {getCurrentUserId, getUser, makeGetProfilesInChannel} from 'mattermost-redux/selectors/entities/users';
 
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
-
+import {isLandscape} from 'app/selectors/device';
 import {getChannelMembersForDm} from 'app/selectors/channel';
 
 import ChannelIntro from './channel_intro';
@@ -24,7 +24,7 @@ function makeMapStateToProps() {
         (currentUserId, profilesInChannel) => {
             const currentChannelMembers = profilesInChannel || [];
             return currentChannelMembers.filter((m) => m.id !== currentUserId);
-        }
+        },
     );
 
     return function mapStateToProps(state, ownProps) {
@@ -48,6 +48,7 @@ function makeMapStateToProps() {
             currentChannel,
             currentChannelMembers,
             theme: getTheme(state),
+            isLandscape: isLandscape(state),
         };
     };
 }

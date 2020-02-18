@@ -3,24 +3,25 @@
 
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
-import {Keyboard, Platform} from 'react-native';
+import {Keyboard} from 'react-native';
 import {intlShape} from 'react-intl';
 
 import {General, RequestStatus} from 'mattermost-redux/constants';
 
 import Loading from 'app/components/loading';
-import {setNavigatorStyles} from 'app/utils/theme';
 import DeletedPost from 'app/components/deleted_post';
+import {resetToChannel, popTopScreen, mergeNavigationOptions} from 'app/actions/navigation';
+import {setNavigatorStyles} from 'app/utils/theme';
 
 export default class ThreadBase extends PureComponent {
     static propTypes = {
         actions: PropTypes.shape({
             selectPost: PropTypes.func.isRequired,
         }).isRequired,
+        componentId: PropTypes.string,
         channelId: PropTypes.string.isRequired,
         channelType: PropTypes.string,
         displayName: PropTypes.string,
-        navigator: PropTypes.object,
         myMember: PropTypes.object.isRequired,
         rootId: PropTypes.string.isRequired,
         theme: PropTypes.object.isRequired,
@@ -52,9 +53,14 @@ export default class ThreadBase extends PureComponent {
 
         this.postTextbox = React.createRef();
 
-        this.props.navigator.setTitle({
-            title,
-        });
+        const options = {
+            topBar: {
+                title: {
+                    text: title,
+                },
+            },
+        };
+        mergeNavigationOptions(props.componentId, options);
 
         this.state = {
             lastViewedAt: props.myMember && props.myMember.last_viewed_at,
@@ -63,7 +69,7 @@ export default class ThreadBase extends PureComponent {
 
     componentWillReceiveProps(nextProps) {
         if (this.props.theme !== nextProps.theme) {
-            setNavigatorStyles(this.props.navigator, nextProps.theme);
+            setNavigatorStyles(this.props.componentId, nextProps.theme);
         }
 
         if (this.props.postIds !== nextProps.postIds && !nextProps.postIds.length) {
@@ -81,17 +87,8 @@ export default class ThreadBase extends PureComponent {
     }
 
     close = () => {
-        const {navigator} = this.props;
-
-        if (Platform.OS === 'ios') {
-            navigator.pop({
-                animated: true,
-            });
-        } else {
-            navigator.dismissModal({
-                animationType: 'slide-down',
-            });
-        }
+        const {componentId} = this.props;
+        popTopScreen(componentId);
     };
 
     handleAutoComplete = (value) => {
@@ -109,13 +106,15 @@ export default class ThreadBase extends PureComponent {
     };
 
     renderFooter = () => {
-        if (!this.hasRootPost() && this.props.threadLoadingStatus.status !== RequestStatus.STARTED) {
+        const {theme, threadLoadingStatus} = this.props;
+
+        if (!this.hasRootPost() && threadLoadingStatus.status !== RequestStatus.STARTED) {
             return (
-                <DeletedPost theme={this.props.theme}/>
+                <DeletedPost theme={theme}/>
             );
-        } else if (this.props.threadLoadingStatus.status === RequestStatus.STARTED) {
+        } else if (threadLoadingStatus.status === RequestStatus.STARTED) {
             return (
-                <Loading/>
+                <Loading color={theme.centerChannelColor}/>
             );
         }
 
@@ -123,22 +122,9 @@ export default class ThreadBase extends PureComponent {
     };
 
     onCloseChannel = () => {
-        this.props.navigator.resetTo({
-            screen: 'Channel',
-            title: '',
-            animated: false,
-            backButtonTitle: '',
-            navigatorStyle: {
-                animated: true,
-                animationType: 'fade',
-                navBarHidden: true,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-                screenBackgroundColor: 'transparent',
-            },
-            passProps: {
-                disableTermsModal: true,
-            },
-        });
+        const passProps = {
+            disableTermsModal: true,
+        };
+        resetToChannel(passProps);
     };
 }

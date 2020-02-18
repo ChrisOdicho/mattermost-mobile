@@ -2,10 +2,10 @@
 // See LICENSE.txt for license information.
 
 import React, {memo} from 'react';
-import {TouchableOpacity, View} from 'react-native';
-
+import {View} from 'react-native';
 import PropTypes from 'prop-types';
 
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 
 let PaperPlane = null;
@@ -18,33 +18,34 @@ function SendButton(props) {
         PaperPlane = require('app/components/paper_plane').default;
     }
 
-    const icon = (
-        <PaperPlane
-            height={13}
-            width={15}
-            color={theme.buttonColor}
-        />
-    );
-
     if (props.disabled) {
         return (
             <View style={style.sendButtonContainer}>
                 <View style={[style.sendButton, style.disableButton]}>
-                    {icon}
+                    <PaperPlane
+                        height={16}
+                        width={19}
+                        color={changeOpacity(theme.buttonColor, 0.5)}
+                    />
                 </View>
             </View>
         );
     }
 
     return (
-        <TouchableOpacity
+        <TouchableWithFeedback
             onPress={props.handleSendMessage}
             style={style.sendButtonContainer}
+            type={'opacity'}
         >
             <View style={style.sendButton}>
-                {icon}
+                <PaperPlane
+                    height={16}
+                    width={19}
+                    color={theme.buttonColor}
+                />
             </View>
-        </TouchableOpacity>
+        </TouchableWithFeedback>
     );
 }
 
@@ -61,14 +62,13 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
         },
         sendButtonContainer: {
             justifyContent: 'flex-end',
-            paddingHorizontal: 5,
-            paddingVertical: 3,
+            paddingRight: 8,
         },
         sendButton: {
             backgroundColor: theme.buttonBg,
-            borderRadius: 18,
-            height: 28,
-            width: 28,
+            borderRadius: 4,
+            height: 32,
+            width: 80,
             alignItems: 'center',
             justifyContent: 'center',
         },

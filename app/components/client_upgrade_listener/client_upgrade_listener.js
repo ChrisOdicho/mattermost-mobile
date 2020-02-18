@@ -17,6 +17,7 @@ import FormattedText from 'app/components/formatted_text';
 import {DeviceTypes} from 'app/constants';
 import {checkUpgradeType, isUpgradeAvailable} from 'app/utils/client_upgrade';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
+import {showModal, dismissModal} from 'app/actions/navigation';
 
 const {View: AnimatedView} = Animated;
 
@@ -35,7 +36,6 @@ export default class ClientUpgradeListener extends PureComponent {
         lastUpgradeCheck: PropTypes.number,
         latestVersion: PropTypes.string,
         minVersion: PropTypes.string,
-        navigator: PropTypes.object,
         theme: PropTypes.object.isRequired,
     };
 
@@ -70,7 +70,7 @@ export default class ClientUpgradeListener extends PureComponent {
         if (versionMismatch && (forceUpgrade || Date.now() - lastUpgradeCheck > UPDATE_TIMEOUT)) {
             this.checkUpgrade(minVersion, latestVersion, nextProps.isLandscape);
         } else if (this.props.isLandscape !== nextProps.isLandscape &&
-            isUpgradeAvailable(this.state.upgradeType) && DeviceTypes.IS_IPHONE_X) {
+            isUpgradeAvailable(this.state.upgradeType) && DeviceTypes.IS_IPHONE_WITH_INSETS) {
             const newTop = nextProps.isLandscape ? 45 : 100;
             this.setState({top: new Animated.Value(newTop)});
         }
@@ -97,10 +97,10 @@ export default class ClientUpgradeListener extends PureComponent {
     toggleUpgradeMessage = (show = true, isLandscape) => {
         let toValue = -100;
         if (show) {
-            if (DeviceTypes.IS_IPHONE_X && isLandscape) {
+            if (DeviceTypes.IS_IPHONE_WITH_INSETS && isLandscape) {
                 toValue = 45;
             } else {
-                toValue = DeviceTypes.IS_IPHONE_X ? 100 : 75;
+                toValue = DeviceTypes.IS_IPHONE_WITH_INSETS ? 100 : 75;
             }
         }
         Animated.timing(this.state.top, {
@@ -130,7 +130,7 @@ export default class ClientUpgradeListener extends PureComponent {
                 intl.formatMessage({
                     id: 'mobile.client_upgrade.download_error.message',
                     defaultMessage: 'An error occurred while trying to open the download link.',
-                })
+                }),
             );
 
             return false;
@@ -141,26 +141,24 @@ export default class ClientUpgradeListener extends PureComponent {
 
     handleLearnMore = () => {
         const {intl} = this.context;
-        this.props.navigator.dismissModal({animationType: 'none'});
 
-        this.props.navigator.showModal({
-            screen: 'ClientUpgrade',
-            title: intl.formatMessage({id: 'mobile.client_upgrade', defaultMessage: 'Upgrade App'}),
-            navigatorStyle: {
-                navBarHidden: false,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-            },
-            navigatorButtons: {
+        dismissModal();
+
+        const screen = 'ClientUpgrade';
+        const title = intl.formatMessage({id: 'mobile.client_upgrade', defaultMessage: 'Upgrade App'});
+        const passProps = {
+            upgradeType: this.state.upgradeType,
+        };
+        const options = {
+            topBar: {
                 leftButtons: [{
                     id: 'close-upgrade',
                     icon: this.closeButton,
                 }],
             },
-            passProps: {
-                upgradeType: this.state.upgradeType,
-            },
-        });
+        };
+
+        showModal(screen, title, passProps, options);
 
         this.toggleUpgradeMessage(false);
     };

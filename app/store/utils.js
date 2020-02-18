@@ -40,3 +40,25 @@ export function transformSet(incoming, setTransforms, toStorage = true) {
 
     return state;
 }
+
+export function waitForHydration(store, callback) {
+    let executed = false; // this is to prevent a race condition when subcription runs before unsubscribed
+    if (store.getState().views.root.hydrationComplete && !executed) {
+        if (callback && typeof callback === 'function') {
+            executed = true;
+            callback();
+        }
+    } else {
+        const subscription = () => {
+            if (store.getState().views.root.hydrationComplete && !executed) {
+                unsubscribeFromStore();
+                if (callback && typeof callback === 'function') {
+                    executed = true;
+                    callback();
+                }
+            }
+        };
+
+        const unsubscribeFromStore = store.subscribe(subscription);
+    }
+}

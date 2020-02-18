@@ -3,7 +3,7 @@
 
 import {createSelector} from 'reselect';
 
-import {getCurrentChannelId} from 'mattermost-redux/selectors/entities/channels';
+import {getCurrentChannelId, getUnreads} from 'mattermost-redux/selectors/entities/channels';
 
 const emptyDraft = {
     draft: '',
@@ -23,7 +23,7 @@ export const getCurrentChannelDraft = createSelector(
     getCurrentChannelId,
     (drafts, currentChannelId) => {
         return drafts[currentChannelId] || emptyDraft;
-    }
+    },
 );
 
 export function getDraftForChannel(state, channelId) {
@@ -36,9 +36,23 @@ export const getThreadDraft = createSelector(
     (state, rootId) => rootId,
     (drafts, rootId) => {
         return drafts[rootId] || emptyDraft;
-    }
+    },
 );
 
 export function getProfileImageUri(state) {
     return state.views.user.profileImageUri;
 }
+
+export const getBadgeCount = createSelector(
+    getUnreads,
+    ({mentionCount, messageCount}) => {
+        let badgeCount = 0;
+        if (mentionCount) {
+            badgeCount = mentionCount;
+        } else if (messageCount) {
+            badgeCount = -1;
+        }
+
+        return badgeCount;
+    },
+);

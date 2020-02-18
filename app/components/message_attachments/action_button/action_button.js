@@ -6,33 +6,37 @@ import PropTypes from 'prop-types';
 import Button from 'react-native-button';
 
 import {preventDoubleTap} from 'app/utils/tap';
-import {makeStyleSheetFromTheme} from 'app/utils/theme';
+import {makeStyleSheetFromTheme, changeOpacity} from 'app/utils/theme';
 import ActionButtonText from './action_button_text';
 
 export default class ActionButton extends PureComponent {
     static propTypes = {
         actions: PropTypes.shape({
-            doPostAction: PropTypes.func.isRequired,
+            doPostActionWithCookie: PropTypes.func.isRequired,
         }).isRequired,
         id: PropTypes.string.isRequired,
         name: PropTypes.string.isRequired,
         postId: PropTypes.string.isRequired,
         theme: PropTypes.object.isRequired,
+        cookie: PropTypes.string.isRequired,
+        disabled: PropTypes.bool,
     };
 
     handleActionPress = preventDoubleTap(() => {
-        const {actions, id, postId} = this.props;
-        actions.doPostAction(postId, id);
+        const {actions, id, postId, cookie} = this.props;
+        actions.doPostActionWithCookie(postId, id, cookie);
     }, 4000);
 
     render() {
-        const {name, theme} = this.props;
+        const {name, theme, disabled} = this.props;
         const style = getStyleSheet(theme);
 
         return (
             <Button
                 containerStyle={style.button}
+                disabledContainerStyle={style.buttonDisabled}
                 onPress={this.handleActionPress}
+                disabled={disabled}
             >
                 <ActionButtonText
                     message={name}
@@ -48,12 +52,16 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
         button: {
             borderRadius: 2,
             backgroundColor: theme.buttonBg,
+            opacity: 1,
             alignItems: 'center',
             marginBottom: 2,
             marginRight: 5,
             marginTop: 10,
             paddingHorizontal: 10,
             paddingVertical: 7,
+        },
+        buttonDisabled: {
+            backgroundColor: changeOpacity(theme.buttonBg, 0.3),
         },
         text: {
             color: theme.buttonColor,

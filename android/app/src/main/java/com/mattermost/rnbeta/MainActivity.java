@@ -1,31 +1,31 @@
 package com.mattermost.rnbeta;
 
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import com.reactnativenavigation.controllers.SplashActivity;
+import androidx.annotation.Nullable;
 
-public class MainActivity extends SplashActivity {
+import com.reactnativenavigation.NavigationActivity;
+import android.view.KeyEvent;
+import com.github.emilioicai.hwkeyboardevent.HWKeyboardEventModule;
+
+public class MainActivity extends NavigationActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        /**
-         * Reference: https://stackoverflow.com/questions/7944338/resume-last-activity-when-launcher-icon-is-clicked
-         * 1. Open app from launcher/appDrawer
-         * 2. Go home
-         * 3. Send notification and open
-         * 4. It creates a new Activity and Destroys the old
-         * 5. Causing an unnecessary app restart
-         * 6. This solution short-circuits the restart
-         */
-        if (!isTaskRoot()) {
-            finish();
-            return;
-        }
+        setContentView(R.layout.launch_screen);
     }
 
+    /*
+    https://mattermost.atlassian.net/browse/MM-10601
+    Required by react-native-hw-keyboard-event
+    (https://github.com/emilioicai/react-native-hw-keyboard-event)
+    */
     @Override
-    public int getSplashLayout() {
-        return R.layout.launch_screen;
-    }
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_UP) {
+            String keyPressed = event.isShiftPressed() ? "shift-enter" : "enter";
+            HWKeyboardEventModule.getInstance().keyPressed(keyPressed);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    };
 }

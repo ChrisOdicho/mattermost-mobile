@@ -4,13 +4,14 @@
 import {AppState, NativeModules} from 'react-native';
 import {NotificationsAndroid, PendingNotifications} from 'react-native-notifications';
 
+import ephemeralStore from 'app/store/ephemeral_store';
+
 const {NotificationPreferences} = NativeModules;
 
 class PushNotification {
     constructor() {
         this.onRegister = null;
         this.onNotification = null;
-        this.onReply = null;
         this.deviceNotification = null;
         this.deviceToken = null;
 
@@ -53,7 +54,6 @@ class PushNotification {
     configure(options) {
         this.onRegister = options.onRegister;
         this.onNotification = options.onNotification;
-        this.onReply = options.onReply;
 
         if (this.onRegister && this.deviceToken) {
             this.onRegister({token: this.deviceToken});
@@ -65,6 +65,7 @@ class PushNotification {
                     if (notification) {
                         const data = notification.getData();
                         if (data) {
+                            ephemeralStore.appStartedFromPushNotification = true;
                             this.handleNotification(data, true);
                         }
                     }
@@ -91,8 +92,8 @@ class PushNotification {
         NotificationsAndroid.cancelAllLocalNotifications();
     }
 
-    setApplicationIconBadgeNumber(number) {
-        NotificationsAndroid.setBadgesCount(number);
+    setApplicationIconBadgeNumber() {
+        // Not supported for Android
     }
 
     getNotification() {
@@ -109,6 +110,10 @@ class PushNotification {
         if (notificationForChannel) {
             NotificationPreferences.removeDeliveredNotifications(notificationForChannel.identifier, channelId);
         }
+    }
+
+    clearNotifications = () => {
+        this.cancelAllLocalNotifications(); // TODO: Only cancel the local notifications that belong to this server
     }
 }
 

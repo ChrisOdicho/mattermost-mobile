@@ -20,7 +20,7 @@ import {getConfig} from 'mattermost-redux/selectors/entities/general';
 import {getCurrentTeam} from 'mattermost-redux/selectors/entities/teams';
 import {getCurrentUserId, getProfilesInCurrentTeam, getUsers, getUserIdsInChannels, getUserStatuses} from 'mattermost-redux/selectors/entities/users';
 import {getDirectShowPreferences, getTeammateNameDisplaySetting, getTheme} from 'mattermost-redux/selectors/entities/preferences';
-
+import {isLandscape} from 'app/selectors/device';
 import Config from 'assets/config';
 
 import FilteredList from './filtered_list';
@@ -29,7 +29,7 @@ const DEFAULT_SEARCH_ORDER = ['unreads', 'dms', 'channels', 'members', 'nonmembe
 
 const pastDirectMessages = createSelector(
     getDirectShowPreferences,
-    (directChannelsFromPreferences) => directChannelsFromPreferences.filter((d) => d.value === 'false').map((d) => d.name)
+    (directChannelsFromPreferences) => directChannelsFromPreferences.filter((d) => d.value === 'false').map((d) => d.name),
 );
 
 const getTeamProfiles = createSelector(
@@ -40,7 +40,7 @@ const getTeamProfiles = createSelector(
 
             return memberProfiles;
         }, {});
-    }
+    },
 );
 
 // Fill an object for each group channel with concatenated strings for username, email, fullname, and nickname
@@ -93,7 +93,7 @@ const getGroupChannelMemberDetails = createSelector(
     getUserIdsInChannels,
     getUsers,
     getGroupChannels,
-    getGroupDetails
+    getGroupDetails,
 );
 
 function mapStateToProps(state) {
@@ -124,6 +124,7 @@ function mapStateToProps(state) {
         pastDirectMessages: pastDirectMessages(state),
         restrictDms,
         theme: getTheme(state),
+        isLandscape: isLandscape(state),
     };
 }
 

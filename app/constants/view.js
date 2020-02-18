@@ -27,6 +27,8 @@ export const NotificationLevels = {
     NONE: 'none',
 };
 
+export const NOTIFY_ALL_MEMBERS = 5;
+
 const ViewTypes = keyMirror({
     DATA_CLEANUP: null,
     SERVER_URL_CHANGED: null,
@@ -42,7 +44,6 @@ const ViewTypes = keyMirror({
     COMMENT_DRAFT_SELECTION_CHANGED: null,
 
     NOTIFICATION_IN_APP: null,
-    NOTIFICATION_TAPPED: null,
 
     SET_POST_DRAFT: null,
     SET_COMMENT_DRAFT: null,
@@ -87,9 +88,6 @@ const ViewTypes = keyMirror({
 
     INCREMENT_EMOJI_PICKER_PAGE: null,
 
-    LAUNCH_LOGIN: null,
-    LAUNCH_CHANNEL: null,
-
     SET_DEEP_LINK_URL: null,
 
     SET_PROFILE_IMAGE_URI: null,
@@ -97,6 +95,9 @@ const ViewTypes = keyMirror({
     SELECTED_ACTION_MENU: null,
     SUBMIT_ATTACHMENT_MENU_ACTION: null,
     SELECT_CHANNEL_WITH_MEMBER: null,
+
+    PORTRAIT: null,
+    LANDSCAPE: null,
 });
 
 export default {
@@ -106,16 +107,18 @@ export default {
     EMBED_PREVIEW: 'embed_preview',
     LINK_PREVIEW_DISPLAY: 'link_previews',
     MIN_CHANNELNAME_LENGTH: 2,
-    MAX_CHANNELNAME_LENGTH: 22,
+    MAX_CHANNELNAME_LENGTH: 64,
     ANDROID_TOP_LANDSCAPE: 46,
     ANDROID_TOP_PORTRAIT: 56,
     IOS_TOP_LANDSCAPE: 32,
     IOS_TOP_PORTRAIT: 64,
-    IOSX_TOP_PORTRAIT: 88,
+    IOS_INSETS_TOP_PORTRAIT: 88,
     STATUS_BAR_HEIGHT: 20,
     PROFILE_PICTURE_SIZE: 32,
+    PROFILE_PICTURE_EMOJI_SIZE: 28,
     DATA_SOURCE_USERS: 'users',
     DATA_SOURCE_CHANNELS: 'channels',
     NotificationLevels,
     SidebarSectionTypes,
+    IOS_HORIZONTAL_LANDSCAPE: 44,
 };

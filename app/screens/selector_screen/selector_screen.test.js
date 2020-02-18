@@ -72,13 +72,11 @@ describe('SelectorScreen', () => {
     const baseProps = {
         actions,
         currentTeamId: 'someId',
-        navigator: {
-            setOnNavigatorEvent: jest.fn(),
-        },
         onSelect: jest.fn(),
         data: [{text: 'text', value: 'value'}],
         dataSource: null,
         theme: Preferences.THEMES.default,
+        isLandscape: false,
     };
 
     test('should match snapshot for explicit options', async () => {

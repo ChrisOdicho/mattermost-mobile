@@ -6,19 +6,18 @@ import {shallow} from 'enzyme';
 
 import Preferences from 'mattermost-redux/constants/preferences';
 import {General, RequestStatus} from 'mattermost-redux/constants';
+
 import PostList from 'app/components/post_list';
+import * as NavigationActions from 'app/actions/navigation';
 
 import ThreadIOS from './thread.ios';
 
 jest.mock('react-intl');
+jest.mock('react-native-image-picker', () => ({
+    launchCamera: jest.fn(),
+}));
 
 describe('thread', () => {
-    const navigator = {
-        dismissModal: jest.fn(),
-        pop: jest.fn(),
-        resetTo: jest.fn(),
-        setTitle: jest.fn(),
-    };
     const baseProps = {
         actions: {
             selectPost: jest.fn(),
@@ -26,7 +25,6 @@ describe('thread', () => {
         channelId: 'channel_id',
         channelType: General.OPEN_CHANNEL,
         displayName: 'channel_display_name',
-        navigator,
         myMember: {last_viewed_at: 0, user_id: 'member_user_id'},
         rootId: 'root_id',
         theme: Preferences.THEMES.default,
@@ -55,35 +53,21 @@ describe('thread', () => {
         expect(wrapper.getElement()).toMatchSnapshot();
     });
 
-    test('should call props.navigator on onCloseChannel', () => {
-        const channelScreen = {
-            screen: 'Channel',
-            title: '',
-            animated: false,
-            backButtonTitle: '',
-            navigatorStyle: {
-                animated: true,
-                animationType: 'fade',
-                navBarHidden: true,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-                screenBackgroundColor: 'transparent',
-            },
-            passProps: {
-                disableTermsModal: true,
-            },
+    test('should call resetToChannel on onCloseChannel', () => {
+        const resetToChannel = jest.spyOn(NavigationActions, 'resetToChannel');
+
+        const passProps = {
+            disableTermsModal: true,
         };
-        const newNavigator = {...navigator};
         const wrapper = shallow(
             <ThreadIOS
                 {...baseProps}
-                navigator={newNavigator}
             />,
             {context: {intl: {formatMessage: jest.fn()}}},
         );
         wrapper.instance().onCloseChannel();
-        expect(newNavigator.resetTo).toHaveBeenCalledTimes(1);
-        expect(newNavigator.resetTo).toBeCalledWith(channelScreen);
+        expect(resetToChannel).toHaveBeenCalledTimes(1);
+        expect(resetToChannel).toBeCalledWith(passProps);
     });
 
     test('should match snapshot, render footer', () => {

@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {PureComponent} from 'react';
+import {Navigation} from 'react-native-navigation';
 import PropTypes from 'prop-types';
 import {
     Alert,
@@ -19,6 +20,7 @@ import {UpgradeTypes} from 'app/constants';
 import logo from 'assets/images/logo.png';
 import {checkUpgradeType, isUpgradeAvailable} from 'app/utils/client_upgrade';
 import {changeOpacity, makeStyleSheetFromTheme, setNavigatorStyles} from 'app/utils/theme';
+import {popTopScreen, dismissModal} from 'app/actions/navigation';
 
 export default class ClientUpgrade extends PureComponent {
     static propTypes = {
@@ -26,13 +28,13 @@ export default class ClientUpgrade extends PureComponent {
             logError: PropTypes.func.isRequired,
             setLastUpgradeCheck: PropTypes.func.isRequired,
         }).isRequired,
+        componentId: PropTypes.string,
         currentVersion: PropTypes.string,
         closeAction: PropTypes.func,
         userCheckedForUpgrade: PropTypes.bool,
         downloadLink: PropTypes.string.isRequired,
         forceUpgrade: PropTypes.bool,
         latestVersion: PropTypes.string,
-        navigator: PropTypes.object,
         theme: PropTypes.object.isRequired,
         upgradeType: PropTypes.string,
     };
@@ -44,21 +46,28 @@ export default class ClientUpgrade extends PureComponent {
     constructor(props) {
         super(props);
 
-        this.props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
         this.state = {
             upgradeType: UpgradeTypes.NO_UPGRADE,
         };
     }
 
     componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+
         if (this.props.userCheckedForUpgrade) {
             this.checkUpgrade(this.props);
         }
     }
 
-    componentWillReceiveProps(nextProps) {
-        if (this.props.theme !== nextProps.theme) {
-            setNavigatorStyles(this.props.navigator, nextProps.theme);
+    componentDidUpdate(prevProps) {
+        if (this.props.theme !== prevProps.theme) {
+            setNavigatorStyles(this.props.componentId, this.props.theme);
+        }
+    }
+
+    navigationButtonPressed({buttonId}) {
+        if (buttonId === 'close-upgrade') {
+            dismissModal();
         }
     }
 
@@ -84,12 +93,17 @@ export default class ClientUpgrade extends PureComponent {
     }
 
     handleClose = () => {
-        if (this.props.closeAction) {
-            this.props.closeAction();
-        } else if (this.props.userCheckedForUpgrade) {
-            this.props.navigator.pop();
+        const {
+            closeAction,
+            userCheckedForUpgrade,
+        } = this.props;
+
+        if (closeAction) {
+            closeAction();
+        } else if (userCheckedForUpgrade) {
+            popTopScreen();
         } else {
-            this.props.navigator.dismissModal();
+            dismissModal();
         }
     };
 
@@ -110,21 +124,11 @@ export default class ClientUpgrade extends PureComponent {
                 intl.formatMessage({
                     id: 'mobile.client_upgrade.download_error.message',
                     defaultMessage: 'An error occurred while trying to open the download link.',
-                })
+                }),
             );
 
             return false;
         });
-    };
-
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            if (event.id === 'close-upgrade') {
-                this.props.navigator.dismissModal({
-                    animationType: 'slide-down',
-                });
-            }
-        }
     };
 
     renderMustUpgrade() {

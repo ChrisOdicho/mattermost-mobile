@@ -11,19 +11,7 @@ import PostOptions from './post_options';
 
 jest.mock('react-intl');
 
-jest.mock('Alert', () => {
-    return {
-        alert: jest.fn(),
-    };
-});
-
 describe('PostOptions', () => {
-    const navigator = {
-        showModal: jest.fn(),
-        dismissModal: jest.fn(),
-        push: jest.fn(),
-    };
-
     const actions = {
         addReaction: jest.fn(),
         deletePost: jest.fn(),
@@ -32,6 +20,7 @@ describe('PostOptions', () => {
         removePost: jest.fn(),
         unflagPost: jest.fn(),
         unpinPost: jest.fn(),
+        setUnreadPost: jest.fn(),
     };
 
     const post = {
@@ -49,19 +38,20 @@ describe('PostOptions', () => {
         canDelete: true,
         canPin: true,
         canEdit: true,
+        canMarkAsUnread: true,
         canEditUntil: -1,
         channelIsReadOnly: false,
         currentTeamUrl: 'http://localhost:8065/team-name',
+        currentUserId: 'user1',
         deviceHeight: 600,
         hasBeenDeleted: false,
         isFlagged: false,
-        isMyPost: true,
         isSystemMessage: false,
         managedConfig: {},
-        navigator,
         post,
         showAddReaction: true,
         theme: Preferences.THEMES.default,
+        isLandscape: false,
     };
 
     function getWrapper(props = {}) {
@@ -70,7 +60,7 @@ describe('PostOptions', () => {
                 {...baseProps}
                 {...props}
             />,
-            {context: {intl: {formatMessage: ({defaultMessage}) => defaultMessage}}}
+            {context: {intl: {formatMessage: ({defaultMessage}) => defaultMessage}}},
         );
     }
 
@@ -108,6 +98,12 @@ describe('PostOptions', () => {
         expect(wrapper.findWhere((node) => node.key() === 'reply')).toMatchObject({});
     });
 
+    test('should not show mark as unread option', () => {
+        const wrapper = getWrapper({canMarkAsUnread: false});
+
+        expect(wrapper.findWhere((node) => node.key() === 'markUnread')).toMatchObject({});
+    });
+
     test('should remove post after delete', () => {
         const wrapper = getWrapper();
 
@@ -115,8 +111,14 @@ describe('PostOptions', () => {
         expect(Alert.alert).toBeCalled();
 
         // Trigger on press of Delete in the Alert
+        const closeWithAnimation = jest.spyOn(wrapper.instance(), 'closeWithAnimation');
         Alert.alert.mock.calls[0][2][1].onPress();
+        expect(closeWithAnimation).toBeCalled();
 
+        // get the callback that gets called by closeWithAnimation
+        const callback = closeWithAnimation.mock.calls[0][0];
+
+        callback();
         expect(actions.deletePost).toBeCalled();
         expect(actions.removePost).toBeCalled();
     });

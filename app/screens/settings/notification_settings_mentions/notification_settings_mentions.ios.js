@@ -15,34 +15,27 @@ import Section from 'app/screens/settings/section';
 import SectionItem from 'app/screens/settings/section_item';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 import {t} from 'app/utils/i18n';
+import {goToScreen} from 'app/actions/navigation';
 
 import NotificationSettingsMentionsBase from './notification_settings_mention_base';
 
 class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
     goToNotificationSettingsMentionKeywords = () => {
-        const {intl, navigator, theme} = this.props;
+        const {intl} = this.props;
         this.goingBack = false;
 
-        navigator.push({
-            backButtonTitle: '',
-            screen: 'NotificationSettingsMentionsKeywords',
-            title: intl.formatMessage({id: 'mobile.notification_settings_mentions.keywords', defaultMessage: 'Keywords'}),
-            animated: true,
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
-            },
-            passProps: {
-                keywords: this.state.mention_keys,
-                onBack: this.updateMentionKeys,
-            },
-        });
+        const screen = 'NotificationSettingsMentionsKeywords';
+        const title = intl.formatMessage({id: 'mobile.notification_settings_mentions.keywords', defaultMessage: 'Keywords'});
+        const passProps = {
+            keywords: this.state.mention_keys,
+            onBack: this.updateMentionKeys,
+        };
+
+        goToScreen(screen, title, passProps);
     };
 
     renderMentionSection(style) {
-        const {currentUser, theme} = this.props;
+        const {currentUser, theme, isLandscape} = this.props;
 
         let mentionKeysComponent;
         if (this.state.mention_keys) {
@@ -61,6 +54,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                 headerId={t('mobile.notification_settings_mentions.wordsTrigger')}
                 headerDefaultMessage='WORDS THAT TRIGGER MENTIONS'
                 theme={theme}
+                isLandscape={isLandscape}
             >
                 {currentUser.first_name?.length > 0 &&
                 <View>
@@ -80,6 +74,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                         actionType='toggle'
                         selected={this.state.first_name === 'true'}
                         theme={theme}
+                        isLandscape={isLandscape}
                     />
                     <View style={style.separator}/>
                 </View>
@@ -100,6 +95,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     action={this.toggleUsernameMention}
                     actionType='toggle'
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
                 <View style={style.separator}/>
                 <SectionItem
@@ -118,6 +114,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     actionType='toggle'
                     selected={this.state.channel === 'true'}
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
                 <View style={style.separator}/>
                 <SectionItem
@@ -131,19 +128,21 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     action={this.goToNotificationSettingsMentionKeywords}
                     actionType='arrow'
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
             </Section>
         );
     }
 
     renderReplySection(style) {
-        const {theme} = this.props;
+        const {theme, isLandscape} = this.props;
 
         return (
             <Section
                 headerId={t('mobile.account_notifications.reply.header')}
                 headerDefaultMessage='SEND REPLY NOTIFICATIONS FOR'
                 theme={theme}
+                isLandscape={isLandscape}
             >
                 <SectionItem
                     label={(
@@ -157,6 +156,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     actionValue='any'
                     selected={this.state.comments === 'any'}
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
                 <View style={style.separator}/>
                 <SectionItem
@@ -171,6 +171,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     actionValue='root'
                     selected={this.state.comments === 'root'}
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
                 <View style={style.separator}/>
                 <SectionItem
@@ -185,6 +186,7 @@ class NotificationSettingsMentionsIos extends NotificationSettingsMentionsBase {
                     actionValue='never'
                     selected={this.state.comments === 'never'}
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
             </Section>
         );

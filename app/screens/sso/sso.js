@@ -5,7 +5,6 @@ import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {injectIntl, intlShape} from 'react-intl';
 import {
-    InteractionManager,
     Text,
     View,
     Platform,
@@ -18,7 +17,9 @@ import {Client4} from 'mattermost-redux/client';
 
 import {ViewTypes} from 'app/constants';
 import Loading from 'app/components/loading';
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import StatusBar from 'app/components/status_bar';
+import {resetToChannel} from 'app/actions/navigation';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 import tracker from 'app/utils/time_tracker';
 
@@ -61,7 +62,6 @@ const oneLoginFormScalingJS = `
 class SSO extends PureComponent {
     static propTypes = {
         intl: intlShape.isRequired,
-        navigator: PropTypes.object,
         theme: PropTypes.object,
         serverUrl: PropTypes.string.isRequired,
         ssoType: PropTypes.string.isRequired,
@@ -70,6 +70,7 @@ class SSO extends PureComponent {
             handleSuccessfulLogin: PropTypes.func.isRequired,
             setStoreFromLocalData: PropTypes.func.isRequired,
         }).isRequired,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     useWebkit = true;
@@ -79,7 +80,7 @@ class SSO extends PureComponent {
 
         this.state = {
             error: null,
-            renderWebView: false,
+            renderWebView: true,
             jsCode: '',
             messagingEnabled: false,
         };
@@ -104,36 +105,12 @@ class SSO extends PureComponent {
         }
     }
 
-    componentDidMount() {
-        InteractionManager.runAfterInteractions(this.clearPreviousCookies);
-    }
-
-    clearPreviousCookies = () => {
-        CookieManager.clearAll(this.useWebkit).then(() => {
-            this.setState({renderWebView: true});
-        });
-    };
-
     goToChannel = () => {
-        const {navigator} = this.props;
         tracker.initialLoad = Date.now();
 
         this.scheduleSessionExpiredNotification();
 
-        navigator.resetTo({
-            screen: 'Channel',
-            title: '',
-            animated: false,
-            backButtonTitle: '',
-            navigatorStyle: {
-                animated: true,
-                animationType: 'fade',
-                navBarHidden: true,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-                screenBackgroundColor: 'transparent',
-            },
-        });
+        resetToChannel();
     };
 
     onMessage = (event) => {
@@ -175,7 +152,7 @@ class SSO extends PureComponent {
     onLoadEnd = (event) => {
         const url = event.nativeEvent.url;
         if (url.includes(this.completedUrl)) {
-            CookieManager.get(urlParse(url).origin, this.useWebkit).then((res) => {
+            CookieManager.get(this.props.serverUrl, this.useWebkit).then((res) => {
                 const token = res.MMAUTHTOKEN;
 
                 if (token) {
@@ -217,7 +194,7 @@ class SSO extends PureComponent {
     };
 
     render() {
-        const {theme} = this.props;
+        const {theme, isLandscape} = this.props;
         const {error, messagingEnabled, renderWebView, jsCode} = this.state;
         const style = getStyleSheet(theme);
 
@@ -240,19 +217,17 @@ class SSO extends PureComponent {
                     startInLoadingState={true}
                     onNavigationStateChange={this.onNavigationStateChange}
                     onShouldStartLoadWithRequest={() => true}
-                    renderLoading={this.renderLoading}
                     injectedJavaScript={jsCode}
                     onLoadEnd={this.onLoadEnd}
                     onMessage={messagingEnabled ? this.onMessage : null}
-                    useWebKit={this.useWebkit}
                     useSharedProcessPool={true}
-                    cacheEnabled={true}
+                    cacheEnabled={false}
                 />
             );
         }
 
         return (
-            <View style={style.container}>
+            <View style={[style.container, padding(isLandscape)]}>
                 <StatusBar/>
                 {content}
             </View>

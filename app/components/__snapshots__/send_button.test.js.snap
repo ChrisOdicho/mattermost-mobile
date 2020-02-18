@@ -5,8 +5,7 @@ exports[`SendButton should change theme backgroundColor to 0.3 opacity 1`] = `
   style={
     Object {
       "justifyContent": "flex-end",
-      "paddingHorizontal": 5,
-      "paddingVertical": 3,
+      "paddingRight": 8,
     }
   }
 >
@@ -16,10 +15,10 @@ exports[`SendButton should change theme backgroundColor to 0.3 opacity 1`] = `
         Object {
           "alignItems": "center",
           "backgroundColor": "#166de0",
-          "borderRadius": 18,
-          "height": 28,
+          "borderRadius": 4,
+          "height": 32,
           "justifyContent": "center",
-          "width": 28,
+          "width": 80,
         },
         Object {
           "backgroundColor": "rgba(22,109,224,0.3)",
@@ -28,76 +27,74 @@ exports[`SendButton should change theme backgroundColor to 0.3 opacity 1`] = `
     }
   >
     <PaperPlane
-      color="#ffffff"
-      height={13}
-      width={15}
+      color="rgba(255,255,255,0.5)"
+      height={16}
+      width={19}
     />
   </View>
 </View>
 `;
 
 exports[`SendButton should match snapshot 1`] = `
-<TouchableOpacity
-  activeOpacity={0.2}
+<TouchableWithFeedbackIOS
   onPress={[MockFunction]}
   style={
     Object {
       "justifyContent": "flex-end",
-      "paddingHorizontal": 5,
-      "paddingVertical": 3,
+      "paddingRight": 8,
     }
   }
+  type="opacity"
 >
   <View
     style={
       Object {
         "alignItems": "center",
         "backgroundColor": "#166de0",
-        "borderRadius": 18,
-        "height": 28,
+        "borderRadius": 4,
+        "height": 32,
         "justifyContent": "center",
-        "width": 28,
+        "width": 80,
       }
     }
   >
     <PaperPlane
       color="#ffffff"
-      height={13}
-      width={15}
+      height={16}
+      width={19}
     />
   </View>
-</TouchableOpacity>
+</TouchableWithFeedbackIOS>
 `;
 
 exports[`SendButton should render theme backgroundColor 1`] = `
-<TouchableOpacity
-  activeOpacity={0.2}
+<TouchableWithFeedbackIOS
   onPress={[MockFunction]}
   style={
     Object {
       "justifyContent": "flex-end",
-      "paddingHorizontal": 5,
-      "paddingVertical": 3,
+      "paddingRight": 8,
     }
   }
+  type="opacity"
 >
   <View
     style={
       Object {
         "alignItems": "center",
         "backgroundColor": "#166de0",
-        "borderRadius": 18,
-        "height": 28,
+        "borderRadius": 4,
+        "height": 32,
         "justifyContent": "center",
-        "width": 28,
+        "width": 80,
       }
     }
   >
     <PaperPlane
       color="#ffffff"
-      height={13}
-      width={15}
+      height={16}
+      width={19}
     />
   </View>
-</TouchableOpacity>
+</TouchableWithFeedbackIOS>
 `;

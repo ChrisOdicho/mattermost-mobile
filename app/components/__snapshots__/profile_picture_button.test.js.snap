@@ -16,14 +16,6 @@ exports[`profile_picture_button should match snapshot 1`] = `
   }
   maxFileCount={5}
   maxFileSize={20971520}
-  navigator={
-    Object {
-      "dismissModal": [MockFunction],
-      "push": [MockFunction],
-      "setButtons": [MockFunction],
-      "setOnNavigatorEvent": [MockFunction],
-    }
-  }
   theme={
     Object {
       "awayIndicator": "#ffbc42",
@@ -35,6 +27,7 @@ exports[`profile_picture_button should match snapshot 1`] = `
       "dndIndicator": "#f74343",
       "errorTextColor": "#fd5960",
       "linkColor": "#2389d7",
+      "mentionBg": "#ffffff",
       "mentionBj": "#ffffff",
       "mentionColor": "#145dbf",
       "mentionHighlightBg": "#ffe577",

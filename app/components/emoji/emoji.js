@@ -9,6 +9,7 @@ import {
     StyleSheet,
     Text,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 
 import CustomPropTypes from 'app/constants/custom_prop_types';
 import ImageCacheManager from 'app/utils/image_cache_manager';
@@ -38,6 +39,8 @@ export default class Emoji extends React.PureComponent {
         literal: PropTypes.string,
         size: PropTypes.number,
         textStyle: CustomPropTypes.Style,
+        unicode: PropTypes.string,
+        customEmojiStyle: CustomPropTypes.Style,
     };
 
     static defaultProps = {
@@ -55,7 +58,7 @@ export default class Emoji extends React.PureComponent {
         };
     }
 
-    componentWillMount() {
+    componentDidMount() {
         const {displayTextOnly, emojiName, imageUrl} = this.props;
         this.mounted = true;
         if (!displayTextOnly && imageUrl) {
@@ -94,6 +97,7 @@ export default class Emoji extends React.PureComponent {
             literal,
             textStyle,
             displayTextOnly,
+            customEmojiStyle,
         } = this.props;
         const {imageUrl} = this.state;
 
@@ -116,6 +120,19 @@ export default class Emoji extends React.PureComponent {
         // force a new image to be rendered when the size changes
         const key = Platform.OS === 'android' ? (height + '-' + width) : null;
 
+        if (this.props.unicode && !this.props.imageUrl) {
+            const codeArray = this.props.unicode.split('-');
+            const code = codeArray.reduce((acc, c) => {
+                return acc + String.fromCodePoint(parseInt(c, 16));
+            }, '');
+
+            return (
+                <Text style={[this.props.textStyle, {fontSize: size}]}>
+                    {code}
+                </Text>
+            );
+        }
+
         if (!imageUrl) {
             return (
                 <Image
@@ -126,9 +143,9 @@ export default class Emoji extends React.PureComponent {
         }
 
         return (
-            <Image
+            <FastImage
                 key={key}
-                style={{width, height}}
+                style={[customEmojiStyle, {width, height}]}
                 source={{uri: imageUrl}}
                 onError={this.onError}
             />

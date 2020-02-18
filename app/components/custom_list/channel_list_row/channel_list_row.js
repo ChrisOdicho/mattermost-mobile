@@ -15,9 +15,11 @@ import CustomListRow from 'app/components/custom_list/custom_list_row';
 export default class ChannelListRow extends React.PureComponent {
     static propTypes = {
         id: PropTypes.string.isRequired,
+        isArchived: PropTypes.bool,
         theme: PropTypes.object.isRequired,
         channel: PropTypes.object.isRequired,
         ...CustomListRow.propTypes,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     onPress = () => {
@@ -47,11 +49,12 @@ export default class ChannelListRow extends React.PureComponent {
                 enabled={this.props.enabled}
                 selectable={this.props.selectable}
                 selected={this.props.selected}
+                isLandscape={this.props.isLandscape}
             >
                 <View style={style.container}>
                     <View style={style.titleContainer}>
                         <Icon
-                            name='globe'
+                            name={this.props.isArchived ? 'archive' : 'globe'}
                             style={style.icon}
                         />
                         <Text style={style.displayName}>

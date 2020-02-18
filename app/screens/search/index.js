@@ -8,6 +8,7 @@ import {selectFocusedPostId, selectPost} from 'mattermost-redux/actions/posts';
 import {clearSearch, removeSearchTerms, searchPostsWithParams, getMorePostsForSearch} from 'mattermost-redux/actions/search';
 import {getCurrentChannelId, filterPostIds} from 'mattermost-redux/selectors/entities/channels';
 import {getCurrentTeamId} from 'mattermost-redux/selectors/entities/teams';
+import {getConfig} from 'mattermost-redux/selectors/entities/general';
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
 import {isTimezoneEnabled} from 'mattermost-redux/selectors/entities/timezone';
 import {isMinimumServerVersion} from 'mattermost-redux/utils/helpers';
@@ -15,11 +16,10 @@ import {getUserCurrentTimezone} from 'mattermost-redux/utils/timezone_utils';
 import {getCurrentUser} from 'mattermost-redux/selectors/entities/users';
 
 import {loadChannelsByTeamName, loadThreadIfNecessary} from 'app/actions/views/channel';
+import {handleSearchDraftChanged} from 'app/actions/views/search';
 import {isLandscape} from 'app/selectors/device';
 import {makePreparePostIdsForSearchPosts} from 'app/selectors/post_list';
-import {handleSearchDraftChanged} from 'app/actions/views/search';
 import {getDeviceUtcOffset, getUtcOffsetForTimeZone} from 'app/utils/timezone';
-import {getConfig} from 'mattermost-redux/selectors/entities/general';
 
 import Search from './search';
 
@@ -43,7 +43,6 @@ function makeMapStateToProps() {
         const currentTeamId = getCurrentTeamId(state);
         const currentChannelId = getCurrentChannelId(state);
         const {recent} = state.entities.search;
-        const {searchPosts: searchRequest} = state.requests.search;
 
         const currentUser = getCurrentUser(state);
         const enableTimezone = isTimezoneEnabled(state);
@@ -62,7 +61,6 @@ function makeMapStateToProps() {
             postIds,
             archivedPostIds,
             recent: recent[currentTeamId],
-            searchingStatus: searchRequest.status,
             isSearchGettingMore,
             theme: getTheme(state),
             enableDateSuggestion,

@@ -9,11 +9,13 @@ import {
     View,
 } from 'react-native';
 import {intlShape} from 'react-intl';
+import {Navigation} from 'react-native-navigation';
 
 import {debounce} from 'mattermost-redux/actions/helpers';
 import {General} from 'mattermost-redux/constants';
 import {filterProfilesMatchingTerm} from 'mattermost-redux/utils/user_utils';
 
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import Loading from 'app/components/loading';
 import CustomList, {FLATLIST, SECTIONLIST} from 'app/components/custom_list';
 import UserListRow from 'app/components/custom_list/user_list_row';
@@ -23,7 +25,13 @@ import SearchBar from 'app/components/search_bar';
 import StatusBar from 'app/components/status_bar';
 import {alertErrorIfInvalidPermissions} from 'app/utils/general';
 import {createProfilesSections, loadingText} from 'app/utils/member_list';
-import {changeOpacity, makeStyleSheetFromTheme, setNavigatorStyles} from 'app/utils/theme';
+import {
+    changeOpacity,
+    makeStyleSheetFromTheme,
+    setNavigatorStyles,
+    getKeyboardAppearanceFromTheme,
+} from 'app/utils/theme';
+import {popTopScreen, setButtons} from 'app/actions/navigation';
 
 export default class ChannelMembers extends PureComponent {
     static propTypes = {
@@ -32,12 +40,13 @@ export default class ChannelMembers extends PureComponent {
             handleRemoveChannelMembers: PropTypes.func.isRequired,
             searchProfiles: PropTypes.func.isRequired,
         }).isRequired,
+        componentId: PropTypes.string,
         canManageUsers: PropTypes.bool.isRequired,
         currentChannelId: PropTypes.string.isRequired,
         currentChannelMembers: PropTypes.array,
         currentUserId: PropTypes.string.isRequired,
-        navigator: PropTypes.object,
         theme: PropTypes.object.isRequired,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     static contextTypes = {
@@ -61,34 +70,46 @@ export default class ChannelMembers extends PureComponent {
         };
 
         this.removeButton = {
-            disabled: true,
+            color: props.theme.sidebarHeaderTextColor,
+            enabled: false,
             id: 'remove-members',
             showAsAction: 'always',
-            title: context.intl.formatMessage({id: 'channel_members_modal.remove', defaultMessage: 'Remove'}),
+            text: context.intl.formatMessage({id: 'channel_members_modal.remove', defaultMessage: 'Remove'}),
         };
 
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
         if (props.canManageUsers) {
-            props.navigator.setButtons({
+            setButtons(props.componentId, {
                 rightButtons: [this.removeButton],
             });
         }
     }
 
     componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+
         this.getProfiles();
     }
 
     componentDidUpdate(prevProps) {
-        const {navigator, theme} = this.props;
+        const {componentId, theme} = this.props;
         const {removing, selectedIds} = this.state;
         const enabled = Object.keys(selectedIds).length > 0 && !removing;
 
         this.enableRemoveOption(enabled);
 
         if (theme !== prevProps.theme) {
-            setNavigatorStyles(navigator, theme);
+            setNavigatorStyles(componentId, theme);
         }
+    }
+
+    navigationButtonPressed({buttonId}) {
+        if (buttonId === this.removeButton.id) {
+            this.handleRemoveMembersPress();
+        }
+    }
+
+    setSearchBarRef = (ref) => {
+        this.searchBarRef = ref;
     }
 
     clearSearch = () => {
@@ -96,13 +117,14 @@ export default class ChannelMembers extends PureComponent {
     };
 
     close = () => {
-        this.props.navigator.pop({animated: true});
+        popTopScreen();
     };
 
     enableRemoveOption = (enabled) => {
-        if (this.props.canManageUsers) {
-            this.props.navigator.setButtons({
-                rightButtons: [{...this.removeButton, disabled: !enabled}],
+        const {canManageUsers, componentId} = this.props;
+        if (canManageUsers) {
+            setButtons(componentId, {
+                rightButtons: [{...this.removeButton, enabled}],
             });
         }
     };
@@ -116,7 +138,7 @@ export default class ChannelMembers extends PureComponent {
                 actions.getProfilesInChannel(
                     currentChannelId,
                     this.page + 1,
-                    General.PROFILE_CHUNK_SIZE
+                    General.PROFILE_CHUNK_SIZE,
                 ).then(this.loadedProfiles);
             });
         }
@@ -136,7 +158,7 @@ export default class ChannelMembers extends PureComponent {
                 formatMessage({
                     id: 'mobile.routes.channel_members.action_message',
                     defaultMessage: 'You must select at least one member to remove from the channel.',
-                })
+                }),
             );
             return;
         }
@@ -156,7 +178,7 @@ export default class ChannelMembers extends PureComponent {
                 }, {
                     text: formatMessage({id: 'mobile.channel_list.alertYes', defaultMessage: 'Yes'}),
                     onPress: () => this.removeMembers(membersToRemove),
-                }]
+                }],
             );
         }
     };
@@ -186,14 +208,6 @@ export default class ChannelMembers extends PureComponent {
 
         this.page += 1;
         this.setState({loading: false, profiles: [...profiles, ...data]});
-    };
-
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            if (event.id === this.removeButton.id) {
-                this.handleRemoveMembersPress();
-            }
-        }
     };
 
     onSearch = (text) => {
@@ -276,7 +290,7 @@ export default class ChannelMembers extends PureComponent {
 
     renderNoResults = () => {
         const {loading} = this.state;
-        const {theme} = this.props;
+        const {theme, isLandscape} = this.props;
         const style = getStyleFromTheme(theme);
 
         if (loading || this.page === -1) {
@@ -284,7 +298,7 @@ export default class ChannelMembers extends PureComponent {
         }
 
         return (
-            <View style={style.noResultContainer}>
+            <View style={[style.noResultContainer, padding(isLandscape)]}>
                 <FormattedText
                     id='mobile.custom_list.no_results'
                     defaultMessage='No Results'
@@ -306,7 +320,7 @@ export default class ChannelMembers extends PureComponent {
 
     render() {
         const {formatMessage} = this.context.intl;
-        const {theme, canManageUsers} = this.props;
+        const {theme, canManageUsers, isLandscape} = this.props;
         const {
             removing,
             loading,
@@ -321,7 +335,7 @@ export default class ChannelMembers extends PureComponent {
             return (
                 <View style={style.container}>
                     <StatusBar/>
-                    <Loading/>
+                    <Loading color={theme.centerChannelColor}/>
                 </View>
             );
         }
@@ -359,9 +373,9 @@ export default class ChannelMembers extends PureComponent {
         return (
             <KeyboardLayout>
                 <StatusBar/>
-                <View style={style.searchBar}>
+                <View style={[style.searchBar, padding(isLandscape)]}>
                     <SearchBar
-                        ref='search_bar'
+                        ref={this.setSearchBarRef}
                         placeholder={formatMessage({id: 'search_bar.search', defaultMessage: 'Search'})}
                         cancelTitle={formatMessage({id: 'mobile.post.cancel', defaultMessage: 'Cancel'})}
                         backgroundColor='transparent'
@@ -375,6 +389,7 @@ export default class ChannelMembers extends PureComponent {
                         onSearchButtonPress={this.onSearch}
                         onCancelButtonPress={this.clearSearch}
                         autoCapitalize='none'
+                        keyboardAppearance={getKeyboardAppearanceFromTheme(theme)}
                         value={term}
                     />
                 </View>
@@ -390,6 +405,7 @@ export default class ChannelMembers extends PureComponent {
                     onRowPress={this.handleSelectProfile}
                     renderItem={canManageUsers ? this.renderSelectableItem : this.renderUnselectableItem}
                     theme={theme}
+                    isLandscape={isLandscape}
                 />
             </KeyboardLayout>
         );

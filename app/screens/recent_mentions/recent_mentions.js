@@ -7,10 +7,10 @@ import {intlShape} from 'react-intl';
 import {
     Keyboard,
     FlatList,
-    SafeAreaView,
     StyleSheet,
     View,
 } from 'react-native';
+import {Navigation} from 'react-native-navigation';
 
 import {isDateLine, getDateForDateLine} from 'mattermost-redux/utils/post_list';
 
@@ -24,6 +24,12 @@ import mattermostManaged from 'app/mattermost_managed';
 import SearchResultPost from 'app/screens/search/search_result_post';
 import ChannelDisplayName from 'app/screens/search/channel_display_name';
 import {changeOpacity} from 'app/utils/theme';
+import {
+    goToScreen,
+    showModalOverCurrentContext,
+    showSearchModal,
+    dismissModal,
+} from 'app/actions/navigation';
 
 export default class RecentMentions extends PureComponent {
     static propTypes = {
@@ -34,11 +40,9 @@ export default class RecentMentions extends PureComponent {
             getRecentMentions: PropTypes.func.isRequired,
             selectFocusedPostId: PropTypes.func.isRequired,
             selectPost: PropTypes.func.isRequired,
-            showSearchModal: PropTypes.func.isRequired,
         }).isRequired,
         didFail: PropTypes.bool,
         isLoading: PropTypes.bool,
-        navigator: PropTypes.object,
         postIds: PropTypes.array,
         theme: PropTypes.object.isRequired,
     };
@@ -54,37 +58,50 @@ export default class RecentMentions extends PureComponent {
     constructor(props) {
         super(props);
 
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
         props.actions.clearSearch();
-        props.actions.getRecentMentions();
+        this.state = {
+            didFail: false,
+            isLoading: false,
+        };
+    }
+
+    getRecentMentions = async () => {
+        const {actions} = this.props;
+
+        this.setState({isLoading: true});
+        const {error} = await actions.getRecentMentions();
+
+        this.setState({
+            isLoading: false,
+            didFail: Boolean(error),
+        });
+    }
+
+    componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+
+        this.getRecentMentions();
+    }
+
+    setListRef = (ref) => {
+        this.listRef = ref;
     }
 
     goToThread = (post) => {
-        const {actions, navigator, theme} = this.props;
+        const {actions} = this.props;
         const channelId = post.channel_id;
         const rootId = (post.root_id || post.id);
+        const screen = 'Thread';
+        const title = '';
+        const passProps = {
+            channelId,
+            rootId,
+        };
 
         Keyboard.dismiss();
         actions.loadThreadIfNecessary(rootId);
         actions.selectPost(rootId);
-
-        const options = {
-            screen: 'Thread',
-            animated: true,
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
-            },
-            passProps: {
-                channelId,
-                rootId,
-            },
-        };
-
-        navigator.push(options);
+        goToScreen(screen, title, passProps);
     };
 
     handleClosePermalink = () => {
@@ -99,24 +116,17 @@ export default class RecentMentions extends PureComponent {
     };
 
     handleHashtagPress = async (hashtag) => {
-        const {actions, navigator} = this.props;
-
-        await navigator.dismissModal();
-
-        actions.showSearchModal(navigator, '#' + hashtag);
+        await dismissModal();
+        showSearchModal('#' + hashtag);
     };
 
     keyExtractor = (item) => item;
 
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            if (event.id === 'close-settings') {
-                this.props.navigator.dismissModal({
-                    animationType: 'slide-down',
-                });
-            }
+    navigationButtonPressed({buttonId}) {
+        if (buttonId === 'close-settings') {
+            dismissModal();
         }
-    };
+    }
 
     previewPost = (post) => {
         Keyboard.dismiss();
@@ -166,7 +176,6 @@ export default class RecentMentions extends PureComponent {
                     postId={item}
                     previewPost={this.previewPost}
                     goToThread={this.goToThread}
-                    navigator={this.props.navigator}
                     onHashtagPress={this.handleHashtagPress}
                     onPermalinkPress={this.handlePermalinkPress}
                     managedConfig={mattermostManaged.getCachedConfig()}
@@ -179,38 +188,34 @@ export default class RecentMentions extends PureComponent {
     };
 
     showPermalinkView = (postId, isPermalink) => {
-        const {actions, navigator} = this.props;
+        const {actions} = this.props;
 
         actions.selectFocusedPostId(postId);
 
         if (!this.showingPermalink) {
+            const screen = 'Permalink';
+            const passProps = {
+                isPermalink,
+                onClose: this.handleClosePermalink,
+            };
             const options = {
-                screen: 'Permalink',
-                animationType: 'none',
-                backButtonTitle: '',
-                overrideBackPress: true,
-                navigatorStyle: {
-                    navBarHidden: true,
-                    screenBackgroundColor: changeOpacity('#000', 0.2),
-                    modalPresentationStyle: 'overCurrentContext',
-                },
-                passProps: {
-                    isPermalink,
-                    onClose: this.handleClosePermalink,
+                layout: {
+                    backgroundColor: changeOpacity('#000', 0.2),
                 },
             };
 
             this.showingPermalink = true;
-            navigator.showModal(options);
+            showModalOverCurrentContext(screen, passProps, options);
         }
     };
 
     retry = () => {
-        this.props.actions.getRecentMentions();
+        this.getRecentMentions();
     };
 
     render() {
-        const {didFail, isLoading, postIds, theme} = this.props;
+        const {postIds, theme} = this.props;
+        const {didFail, isLoading} = this.state;
 
         let component;
         if (didFail) {
@@ -227,7 +232,7 @@ export default class RecentMentions extends PureComponent {
         } else if (postIds.length) {
             component = (
                 <FlatList
-                    ref='list'
+                    ref={this.setListRef}
                     contentContainerStyle={style.sectionList}
                     data={postIds}
                     keyExtractor={this.keyExtractor}
@@ -241,12 +246,10 @@ export default class RecentMentions extends PureComponent {
         }
 
         return (
-            <SafeAreaView style={style.container}>
-                <View style={style.container}>
-                    <StatusBar/>
-                    {component}
-                </View>
-            </SafeAreaView>
+            <View style={style.container}>
+                <StatusBar/>
+                {component}
+            </View>
         );
     }
 }

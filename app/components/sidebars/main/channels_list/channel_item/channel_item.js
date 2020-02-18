@@ -2,24 +2,20 @@
 // See LICENSE.txt for license information.
 
 import React, {PureComponent} from 'react';
-import {General} from 'mattermost-redux/constants';
-
 import PropTypes from 'prop-types';
 import {
-    Animated,
-    Platform,
     TouchableHighlight,
     Text,
     View,
 } from 'react-native';
 import {intlShape} from 'react-intl';
 
+import {General} from 'mattermost-redux/constants';
+import {paddingLeft as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import Badge from 'app/components/badge';
 import ChannelIcon from 'app/components/channel_icon';
 import {preventDoubleTap} from 'app/utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
-
-const {View: AnimatedView} = Animated;
 
 export default class ChannelItem extends PureComponent {
     static propTypes = {
@@ -27,12 +23,12 @@ export default class ChannelItem extends PureComponent {
         channel: PropTypes.object,
         currentChannelId: PropTypes.string.isRequired,
         displayName: PropTypes.string.isRequired,
+        isArchived: PropTypes.bool,
         isChannelMuted: PropTypes.bool,
         currentUserId: PropTypes.string.isRequired,
         isUnread: PropTypes.bool,
         hasDraft: PropTypes.bool,
         mentions: PropTypes.number.isRequired,
-        navigator: PropTypes.object,
         onSelectChannel: PropTypes.func.isRequired,
         shouldHideChannel: PropTypes.bool,
         showUnreadForMsgs: PropTypes.bool.isRequired,
@@ -40,9 +36,11 @@ export default class ChannelItem extends PureComponent {
         unreadMsgs: PropTypes.number.isRequired,
         isSearchResult: PropTypes.bool,
         isBot: PropTypes.bool.isRequired,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     static defaultProps = {
+        isArchived: false,
         mentions: 0,
     };
 
@@ -58,30 +56,6 @@ export default class ChannelItem extends PureComponent {
         });
     });
 
-    onPreview = () => {
-        const {channelId, navigator} = this.props;
-        if (Platform.OS === 'ios' && navigator && this.previewRef) {
-            const {intl} = this.context;
-
-            navigator.push({
-                screen: 'ChannelPeek',
-                previewCommit: false,
-                previewView: this.previewRef,
-                previewActions: [{
-                    id: 'action-mark-as-read',
-                    title: intl.formatMessage({id: 'mobile.channel.markAsRead', defaultMessage: 'Mark As Read'}),
-                }],
-                passProps: {
-                    channelId,
-                },
-            });
-        }
-    };
-
-    setPreviewRef = (ref) => {
-        this.previewRef = ref;
-    };
-
     showChannelAsUnread = () => {
         return this.props.mentions > 0 || (this.props.unreadMsgs > 0 && this.props.showUnreadForMsgs);
     };
@@ -91,6 +65,7 @@ export default class ChannelItem extends PureComponent {
             channelId,
             currentChannelId,
             displayName,
+            isArchived,
             isChannelMuted,
             currentUserId,
             isUnread,
@@ -101,9 +76,8 @@ export default class ChannelItem extends PureComponent {
             isSearchResult,
             channel,
             isBot,
+            isLandscape,
         } = this.props;
-
-        const isArchived = channel.delete_at > 0;
 
         // Only ever show an archived channel if it's the currently viewed channel.
         // It should disappear as soon as one navigates to another channel.
@@ -115,7 +89,7 @@ export default class ChannelItem extends PureComponent {
             return null;
         }
 
-        if (!this.props.displayName) {
+        if (!displayName) {
             return null;
         }
 
@@ -134,7 +108,7 @@ export default class ChannelItem extends PureComponent {
         if (isCurrenUser) {
             channelDisplayName = intl.formatMessage({
                 id: 'channel_header.directchannel.you',
-                defaultMessage: '{displayName} (you)',
+                defaultMessage: '{displayname} (you)',
             }, {displayname: displayName});
         }
 
@@ -161,10 +135,12 @@ export default class ChannelItem extends PureComponent {
         if (mentions) {
             badge = (
                 <Badge
+                    containerStyle={style.badgeContainer}
                     style={style.badge}
                     countStyle={style.mention}
                     count={mentions}
                     onPress={this.onPress}
+                    minWidth={21}
                 />
             );
         }
@@ -190,28 +166,25 @@ export default class ChannelItem extends PureComponent {
         );
 
         return (
-            <AnimatedView ref={this.setPreviewRef}>
-                <TouchableHighlight
-                    underlayColor={changeOpacity(theme.sidebarTextHoverBg, 0.5)}
-                    onPress={this.onPress}
-                    onLongPress={this.onPreview}
-                >
-                    <View style={[style.container, mutedStyle]}>
-                        {extraBorder}
-                        <View style={[style.item, extraItemStyle]}>
-                            {icon}
-                            <Text
-                                style={[style.text, extraTextStyle]}
-                                ellipsizeMode='tail'
-                                numberOfLines={1}
-                            >
-                                {channelDisplayName}
-                            </Text>
-                            {badge}
-                        </View>
+            <TouchableHighlight
+                underlayColor={changeOpacity(theme.sidebarTextHoverBg, 0.5)}
+                onPress={this.onPress}
+            >
+                <View style={[style.container, mutedStyle, padding(isLandscape)]}>
+                    {extraBorder}
+                    <View style={[style.item, extraItemStyle]}>
+                        {icon}
+                        <Text
+                            style={[style.text, extraTextStyle]}
+                            ellipsizeMode='tail'
+                            numberOfLines={1}
+                        >
+                            {channelDisplayName}
+                        </Text>
+                        {badge}
                     </View>
-                </TouchableHighlight>
-            </AnimatedView>
+                </View>
+            </TouchableHighlight>
         );
     }
 }
@@ -238,31 +211,39 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
             paddingLeft: 11,
         },
         text: {
-            color: changeOpacity(theme.sidebarText, 0.4),
-            fontSize: 14,
-            fontWeight: '600',
+            color: changeOpacity(theme.sidebarText, 0.6),
+            fontSize: 16,
+            lineHeight: 24,
             paddingRight: 10,
+            maxWidth: '80%',
             flex: 1,
             alignSelf: 'center',
+            fontFamily: 'Open Sans',
         },
         textActive: {
             color: theme.sidebarTextActiveColor,
         },
         textUnread: {
             color: theme.sidebarUnreadText,
+            fontWeight: '500',
         },
         badge: {
             backgroundColor: theme.mentionBg,
-            borderColor: theme.sidebarHeaderBg,
-            borderRadius: 10,
-            borderWidth: 1,
             padding: 3,
             position: 'relative',
-            right: 16,
+            height: 21,
+        },
+        badgeContainer: {
+            borderColor: theme.sidebarHeaderBg,
+            borderRadius: 14,
+            borderWidth: 0,
+            right: 0,
+            top: 11,
+            marginRight: 16,
         },
         mention: {
             color: theme.mentionColor,
-            fontSize: 10,
+            fontSize: 12,
         },
         muted: {
             opacity: 0.5,

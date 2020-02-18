@@ -6,12 +6,11 @@ import PropTypes from 'prop-types';
 import {intlShape} from 'react-intl';
 import {
     Keyboard,
-    Platform,
     StyleSheet,
     View,
 } from 'react-native';
-
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
 
 import EmptyToolbar from 'app/components/start/empty_toolbar';
@@ -21,10 +20,15 @@ import SafeAreaView from 'app/components/safe_area_view';
 import SettingsSidebar from 'app/components/sidebars/settings';
 
 import {preventDoubleTap} from 'app/utils/tap';
+import {makeStyleSheetFromTheme, setNavigatorStyles} from 'app/utils/theme';
 import PushNotifications from 'app/push_notifications';
-import ephemeralStore from 'app/store/ephemeral_store';
+import EphemeralStore from 'app/store/ephemeral_store';
 import tracker from 'app/utils/time_tracker';
 import telemetry from 'app/telemetry';
+import {
+    showModal,
+    showModalOverCurrentContext,
+} from 'app/actions/navigation';
 
 import LocalConfig from 'assets/config';
 
@@ -38,12 +42,13 @@ export default class ChannelBase extends PureComponent {
             selectDefaultTeam: PropTypes.func.isRequired,
             selectInitialChannel: PropTypes.func.isRequired,
             recordLoadTime: PropTypes.func.isRequired,
+            getChannelStats: PropTypes.func.isRequired,
         }).isRequired,
+        componentId: PropTypes.string.isRequired,
         currentChannelId: PropTypes.string,
         channelsRequestFailed: PropTypes.bool,
         currentTeamId: PropTypes.string,
         isLandscape: PropTypes.bool,
-        navigator: PropTypes.object,
         theme: PropTypes.object.isRequired,
         showTermsOfService: PropTypes.bool,
         disableTermsModal: PropTypes.bool,
@@ -64,16 +69,18 @@ export default class ChannelBase extends PureComponent {
         this.postTextbox = React.createRef();
         this.keyboardTracker = React.createRef();
 
-        props.navigator.setStyle({
-            screenBackgroundColor: props.theme.centerChannelBg,
+        MaterialIcon.getImageSource('close', 20, props.theme.sidebarHeaderTextColor).then((source) => {
+            this.closeButton = source;
         });
+
+        setNavigatorStyles(props.componentId, props.theme);
 
         if (LocalConfig.EnableMobileClientUpgrade && !ClientUpgradeListener) {
             ClientUpgradeListener = require('app/components/client_upgrade_listener').default;
         }
     }
 
-    componentWillMount() {
+    componentDidMount() {
         EventEmitter.on('leave_team', this.handleLeaveTeam);
 
         if (this.props.currentTeamId) {
@@ -84,10 +91,9 @@ export default class ChannelBase extends PureComponent {
 
         if (this.props.currentChannelId) {
             PushNotifications.clearChannelNotifications(this.props.currentChannelId);
+            this.props.actions.getChannelStats(this.props.currentChannelId);
         }
-    }
 
-    componentDidMount() {
         if (tracker.initialLoad && !this.props.skipMetrics) {
             this.props.actions.recordLoadTime('Start time', 'initialLoad');
         }
@@ -105,8 +111,10 @@ export default class ChannelBase extends PureComponent {
 
     componentWillReceiveProps(nextProps) {
         if (this.props.theme !== nextProps.theme) {
-            this.props.navigator.setStyle({
-                screenBackgroundColor: nextProps.theme.centerChannelBg,
+            setNavigatorStyles(this.props.componentId, nextProps.theme);
+
+            EphemeralStore.allNavigationComponentIds.forEach((componentId) => {
+                setNavigatorStyles(componentId, nextProps.theme);
             });
         }
 
@@ -117,6 +125,10 @@ export default class ChannelBase extends PureComponent {
         if (nextProps.currentChannelId !== this.props.currentChannelId &&
             nextProps.currentTeamId === this.props.currentTeamId) {
             PushNotifications.clearChannelNotifications(nextProps.currentChannelId);
+        }
+
+        if (nextProps.currentChannelId !== this.props.currentChannelId) {
+            this.props.actions.getChannelStats(nextProps.currentChannelId);
         }
 
         if (LocalConfig.EnableMobileClientUpgrade && !ClientUpgradeListener) {
@@ -162,53 +174,47 @@ export default class ChannelBase extends PureComponent {
     };
 
     showTermsOfServiceModal = async () => {
-        const {navigator, theme} = this.props;
+        const {intl} = this.context;
+        const {theme} = this.props;
         const closeButton = await MaterialIcon.getImageSource('close', 20, theme.sidebarHeaderTextColor);
-        navigator.showModal({
-            screen: 'TermsOfService',
-            animationType: 'slide-up',
-            title: '',
-            backButtonTitle: '',
-            animated: true,
-            navigatorStyle: {
-                navBarTextColor: theme.centerChannelColor,
-                navBarBackgroundColor: theme.centerChannelBg,
-                navBarButtonColor: theme.buttonBg,
-                screenBackgroundColor: theme.centerChannelBg,
-                modalPresentationStyle: 'overCurrentContext',
+        const screen = 'TermsOfService';
+        const passProps = {closeButton};
+        const title = intl.formatMessage({id: 'mobile.tos_link', defaultMessage: 'Terms of Service'});
+        const options = {
+            layout: {
+                backgroundColor: theme.centerChannelBg,
             },
-            overrideBackPress: true,
-            passProps: {
-                closeButton,
+            topBar: {
+                visible: true,
+                height: null,
+                title: {
+                    color: theme.sidebarHeaderTextColor,
+                    text: title,
+                },
             },
-        });
+        };
+
+        showModalOverCurrentContext(screen, passProps, options);
     };
 
     goToChannelInfo = preventDoubleTap(() => {
         const {intl} = this.context;
-        const {navigator, theme} = this.props;
+        const screen = 'ChannelInfo';
+        const title = intl.formatMessage({id: 'mobile.routes.channelInfo', defaultMessage: 'Info'});
         const options = {
-            screen: 'ChannelInfo',
-            title: intl.formatMessage({id: 'mobile.routes.channelInfo', defaultMessage: 'Info'}),
-            animated: true,
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
+            topBar: {
+                leftButtons: [{
+                    id: 'close-info',
+                    icon: this.closeButton,
+                }],
             },
         };
 
         Keyboard.dismiss();
 
-        if (Platform.OS === 'android') {
-            navigator.showModal(options);
-        } else {
-            requestAnimationFrame(() => {
-                navigator.push(options);
-            });
-        }
+        requestAnimationFrame(() => {
+            showModal(screen, title, null, options);
+        });
     });
 
     handleAutoComplete = (value) => {
@@ -231,8 +237,8 @@ export default class ChannelBase extends PureComponent {
         loadChannelsIfNecessary(teamId).then(() => {
             loadProfilesAndTeamMembersForDMSidebar(teamId);
 
-            if (ephemeralStore.appStartedFromPushNotification) {
-                ephemeralStore.appStartedFromPushNotification = false;
+            if (EphemeralStore.appStartedFromPushNotification) {
+                EphemeralStore.appStartedFromPushNotification = false;
             } else {
                 selectInitialChannel(teamId);
             }
@@ -266,56 +272,82 @@ export default class ChannelBase extends PureComponent {
             channelsRequestFailed,
             currentChannelId,
             isLandscape,
-            navigator,
             theme,
         } = this.props;
 
         if (!currentChannelId) {
             if (channelsRequestFailed) {
-                const PostListRetry = require('app/components/post_list_retry').default;
+                const FailedNetworkAction = require('app/components/failed_network_action').default;
+
                 return (
-                    <PostListRetry
-                        retry={this.retryLoadChannels}
-                        theme={theme}
-                    />
+                    <SafeAreaView>
+                        <View style={style.flex}>
+                            <EmptyToolbar
+                                theme={theme}
+                                isLandscape={isLandscape}
+                            />
+                            <FailedNetworkAction
+                                onRetry={this.retryLoadChannels}
+                                theme={theme}
+                            />
+                        </View>
+                    </SafeAreaView>
                 );
             }
 
             const Loading = require('app/components/channel_loader').default;
             return (
-                <SafeAreaView navigator={navigator}>
+                <SafeAreaView>
                     <View style={style.flex}>
                         <EmptyToolbar
                             theme={theme}
                             isLandscape={isLandscape}
                         />
-                        <Loading channelIsLoading={true}/>
+                        <Loading
+                            channelIsLoading={true}
+                            color={theme.centerChannelColor}
+                        />
                     </View>
                 </SafeAreaView>
             );
         }
 
+        const baseStyle = getStyleFromTheme(theme);
         return (
             <MainSidebar
                 ref={this.channelSidebarRef}
                 blurPostTextBox={this.blurPostTextBox}
-                navigator={navigator}
             >
                 <SettingsSidebar
                     ref={this.settingsSidebarRef}
                     blurPostTextBox={this.blurPostTextBox}
-                    navigator={navigator}
                 >
-                    {drawerContent}
+                    <View style={baseStyle.backdrop}>
+                        {drawerContent}
+                    </View>
                 </SettingsSidebar>
                 <InteractiveDialogController
-                    navigator={navigator}
                     theme={theme}
                 />
             </MainSidebar>
         );
     }
+
+    render() {
+        // Overriden in channel.android.js and channel.ios.js
+        // but defined here for channel_base.test.js
+        return; // eslint-disable-line no-useless-return
+    }
 }
+
+const getStyleFromTheme = makeStyleSheetFromTheme((theme) => {
+    return {
+        backdrop: {
+            flex: 1,
+            backgroundColor: theme.centerChannelBg,
+        },
+    };
+});
 
 export const style = StyleSheet.create({
     flex: {
@@ -327,6 +359,6 @@ export const style = StyleSheet.create({
         flex: 1,
     },
     iOSHomeIndicator: {
-        paddingBottom: 5,
+        paddingBottom: 50,
     },
 });

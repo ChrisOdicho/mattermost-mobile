@@ -2,65 +2,40 @@
 // See LICENSE.txt for license information.
 
 import {AppState} from 'react-native';
-import NotificationsIOS, {NotificationAction, NotificationCategory} from 'react-native-notifications';
+import NotificationsIOS, {
+    NotificationAction,
+    NotificationCategory,
+    DEVICE_REMOTE_NOTIFICATIONS_REGISTERED_EVENT,
+    DEVICE_NOTIFICATION_RECEIVED_FOREGROUND_EVENT,
+    DEVICE_NOTIFICATION_OPENED_EVENT,
+} from 'react-native-notifications';
+
+import {getBadgeCount} from 'app/selectors/views';
+import ephemeralStore from 'app/store/ephemeral_store';
+import {getCurrentLocale} from 'app/selectors/i18n';
+import {getLocalizedMessage} from 'app/i18n';
+import {t} from 'app/utils/i18n';
 
 const CATEGORY = 'CAN_REPLY';
 const REPLY_ACTION = 'REPLY_ACTION';
-
-let replyCategory;
-const replies = new Set();
 
 class PushNotification {
     constructor() {
         this.deviceNotification = null;
         this.onRegister = null;
         this.onNotification = null;
-        this.onReply = null;
+        this.reduxStore = null;
 
-        NotificationsIOS.addEventListener('notificationReceivedForeground', (notification) => {
-            const info = {
-                ...notification.getData(),
-                message: notification.getMessage(),
-            };
-            this.handleNotification(info, true, false);
-        });
-
-        NotificationsIOS.addEventListener('notificationReceivedBackground', (notification) => {
-            const info = {
-                ...notification.getData(),
-                message: notification.getMessage(),
-            };
-            this.handleNotification(info, false, false);
-        });
-
-        NotificationsIOS.addEventListener('notificationOpened', (notification) => {
-            const info = {
-                ...notification.getData(),
-                message: notification.getMessage(),
-            };
-            this.handleNotification(info, false, true);
-        });
-
-        const replyAction = new NotificationAction({
-            activationMode: 'background',
-            title: 'Reply',
-            behavior: 'textInput',
-            authenticationRequired: true,
-            identifier: REPLY_ACTION,
-        }, this.handleReply);
-
-        replyCategory = new NotificationCategory({
-            identifier: CATEGORY,
-            actions: [replyAction],
-            context: 'default',
-        });
+        NotificationsIOS.addEventListener(DEVICE_REMOTE_NOTIFICATIONS_REGISTERED_EVENT, this.onRemoteNotificationsRegistered);
+        NotificationsIOS.addEventListener(DEVICE_NOTIFICATION_RECEIVED_FOREGROUND_EVENT, this.onNotificationReceivedForeground);
+        NotificationsIOS.addEventListener(DEVICE_NOTIFICATION_OPENED_EVENT, this.onNotificationOpened);
     }
 
     handleNotification = (data, foreground, userInteraction) => {
         this.deviceNotification = {
             data,
-            foreground: foreground || (!userInteraction && AppState.currentState === 'active'),
-            message: data.message,
+            foreground,
+            message: data.body || data.message,
             userInfo: data.userInfo,
             userInteraction,
         };
@@ -70,39 +45,60 @@ class PushNotification {
         }
     };
 
-    handleReply = (action, completed) => {
-        if (action.identifier === REPLY_ACTION) {
-            const data = action.notification.getData();
-            const text = action.text;
-            const badge = parseInt(action.notification._badge, 10) - 1; //eslint-disable-line no-underscore-dangle
-
-            if (this.onReply && !replies.has(action.completionKey)) {
-                replies.add(action.completionKey);
-                this.onReply(data, text, badge, completed);
-            }
-        } else {
-            completed();
-        }
-    };
-
     configure(options) {
+        this.reduxStore = options.reduxStore;
         this.onRegister = options.onRegister;
         this.onNotification = options.onNotification;
-        this.onReply = options.onReply;
 
-        NotificationsIOS.addEventListener('remoteNotificationsRegistered', (deviceToken) => {
-            if (this.onRegister) {
-                this.onRegister({token: deviceToken});
-            }
-        });
-
-        if (options.requestPermissions) {
-            this.requestPermissions([replyCategory]);
-        }
+        this.requestNotificationReplyPermissions();
 
         if (options.popInitialNotification) {
-            NotificationsIOS.consumeBackgroundQueue();
+            NotificationsIOS.getInitialNotification().
+                then((notification) => {
+                    if (notification) {
+                        const data = notification.getData();
+                        if (data) {
+                            ephemeralStore.appStartedFromPushNotification = true;
+                            this.handleNotification(data, false, true);
+                        }
+                    }
+                }).
+                catch((err) => {
+                    console.log('iOS getInitialNotifiation() failed', err); //eslint-disable-line no-console
+                });
         }
+    }
+
+    requestNotificationReplyPermissions = () => {
+        const replyCategory = this.createReplyCategory();
+        this.requestPermissions([replyCategory]);
+    }
+
+    createReplyCategory = () => {
+        const {getState} = this.reduxStore;
+        const state = getState();
+        const locale = getCurrentLocale(state);
+
+        const replyTitle = getLocalizedMessage(locale, t('mobile.push_notification_reply.title'));
+        const replyButton = getLocalizedMessage(locale, t('mobile.push_notification_reply.button'));
+        const replyPlaceholder = getLocalizedMessage(locale, t('mobile.push_notification_reply.placeholder'));
+
+        const replyAction = new NotificationAction({
+            activationMode: 'background',
+            title: replyTitle,
+            textInput: {
+                buttonTitle: replyButton,
+                placeholder: replyPlaceholder,
+            },
+            authenticationRequired: true,
+            identifier: REPLY_ACTION,
+        });
+
+        return new NotificationCategory({
+            identifier: CATEGORY,
+            actions: [replyAction],
+            context: 'default',
+        });
     }
 
     requestPermissions = (permissions) => {
@@ -113,7 +109,7 @@ class PushNotification {
         if (notification.date) {
             const deviceNotification = {
                 fireDate: notification.date.toISOString(),
-                alertBody: notification.message,
+                body: notification.message,
                 alertAction: '',
                 userInfo: notification.userInfo,
             };
@@ -123,18 +119,62 @@ class PushNotification {
     }
 
     localNotification(notification) {
-        const deviceNotification = {
-            alertBody: notification.message,
+        this.deviceNotification = {
+            body: notification.message,
             alertAction: '',
             userInfo: notification.userInfo,
         };
 
-        NotificationsIOS.localNotification(deviceNotification);
+        NotificationsIOS.localNotification(this.deviceNotification);
     }
 
     cancelAllLocalNotifications() {
         NotificationsIOS.cancelAllLocalNotifications();
     }
+
+    onNotificationReceivedBackground = (notification) => {
+        const userInteraction = AppState.currentState === 'active';
+
+        // mark the app as started as soon as possible
+        if (userInteraction) {
+            ephemeralStore.appStartedFromPushNotification = true;
+        }
+
+        const data = notification.getData();
+        const info = {
+            ...data,
+            message: data.body || notification.getMessage(),
+        };
+
+        if (!userInteraction) {
+            this.handleNotification(info, false, userInteraction);
+        }
+    };
+
+    onNotificationReceivedForeground = (notification) => {
+        const data = notification.getData();
+        const info = {
+            ...data,
+            message: data.body || notification.getMessage(),
+        };
+        this.handleNotification(info, true, false);
+    };
+
+    onNotificationOpened = (notification, completion) => {
+        const data = notification.getData();
+        const info = {
+            ...data,
+            message: data.body || notification.getMessage(),
+        };
+        this.handleNotification(info, false, true);
+        completion();
+    };
+
+    onRemoteNotificationsRegistered = (deviceToken) => {
+        if (this.onRegister) {
+            this.onRegister({token: deviceToken});
+        }
+    };
 
     setApplicationIconBadgeNumber(number) {
         const count = number < 0 ? 0 : number;
@@ -149,15 +189,26 @@ class PushNotification {
         this.deviceNotification = null;
     }
 
+    getDeliveredNotifications(callback) {
+        NotificationsIOS.getDeliveredNotifications(callback);
+    }
+
     clearChannelNotifications(channelId) {
         NotificationsIOS.getDeliveredNotifications((notifications) => {
             const ids = [];
             let badgeCount = notifications.length;
 
+            if (this.reduxStore) {
+                const totalMentions = getBadgeCount(this.reduxStore.getState());
+                if (totalMentions > -1) {
+                    badgeCount = totalMentions;
+                }
+            }
+
             for (let i = 0; i < notifications.length; i++) {
                 const notification = notifications[i];
 
-                if (notification.userInfo.channel_id === channelId) {
+                if (notification.channel_id === channelId) {
                     ids.push(notification.identifier);
                 }
             }
@@ -169,6 +220,11 @@ class PushNotification {
 
             this.setApplicationIconBadgeNumber(badgeCount);
         });
+    }
+
+    clearNotifications = () => {
+        this.setApplicationIconBadgeNumber(0);
+        this.cancelAllLocalNotifications(); // TODO: Only cancel the local notifications that belong to this server
     }
 }
 

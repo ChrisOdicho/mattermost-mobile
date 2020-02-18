@@ -7,9 +7,11 @@ import {intlShape} from 'react-intl';
 import {Alert, View} from 'react-native';
 import RNFetchBlob from 'rn-fetch-blob';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
-import {DocumentPickerUtil} from 'react-native-document-picker';
+import DocumentPicker from 'react-native-document-picker';
+import {Navigation} from 'react-native-navigation';
 
 import {Client4} from 'mattermost-redux/client';
+import {getFormattedFileSize} from 'mattermost-redux/utils/file_utils';
 
 import {buildFileUploadData, encodeHeaderURIStringToUTF8} from 'app/utils/file';
 import {emptyFunction} from 'app/utils/general';
@@ -24,8 +26,7 @@ import StatusBar from 'app/components/status_bar/index';
 import ProfilePictureButton from 'app/components/profile_picture_button';
 import ProfilePicture from 'app/components/profile_picture';
 import mattermostBucket from 'app/mattermost_bucket';
-
-import {getFormattedFileSize} from 'mattermost-redux/utils/file_utils';
+import {popTopScreen, dismissModal, setButtons} from 'app/actions/navigation';
 
 const MAX_SIZE = 20 * 1024 * 1024;
 export const VALID_MIME_TYPES = [
@@ -88,14 +89,15 @@ export default class EditProfile extends PureComponent {
             removeProfileImage: PropTypes.func.isRequired,
             updateUser: PropTypes.func.isRequired,
         }).isRequired,
+        componentId: PropTypes.string,
         currentUser: PropTypes.object.isRequired,
         firstNameDisabled: PropTypes.bool.isRequired,
         lastNameDisabled: PropTypes.bool.isRequired,
-        navigator: PropTypes.object.isRequired,
         nicknameDisabled: PropTypes.bool.isRequired,
         positionDisabled: PropTypes.bool.isRequired,
         theme: PropTypes.object.isRequired,
         commandType: PropTypes.string.isRequired,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     static contextTypes = {
@@ -104,7 +106,7 @@ export default class EditProfile extends PureComponent {
 
     rightButton = {
         id: 'update-profile',
-        disabled: true,
+        enabled: false,
         showAsAction: 'always',
     };
 
@@ -115,10 +117,10 @@ export default class EditProfile extends PureComponent {
         const buttons = {
             rightButtons: [this.rightButton],
         };
-        this.rightButton.title = context.intl.formatMessage({id: t('mobile.account.settings.save'), defaultMessage: 'Save'});
+        this.rightButton.color = props.theme.sidebarHeaderTextColor;
+        this.rightButton.text = context.intl.formatMessage({id: t('mobile.account.settings.save'), defaultMessage: 'Save'});
 
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
-        props.navigator.setButtons(buttons);
+        setButtons(props.componentId, buttons);
 
         this.state = {
             email,
@@ -128,6 +130,21 @@ export default class EditProfile extends PureComponent {
             position,
             username,
         };
+    }
+
+    componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+    }
+
+    navigationButtonPressed({buttonId}) {
+        switch (buttonId) {
+        case 'update-profile':
+            this.submitUser();
+            break;
+        case 'close-settings':
+            this.close();
+            break;
+        }
     }
 
     canUpdate = (updatedField) => {
@@ -161,21 +178,21 @@ export default class EditProfile extends PureComponent {
     };
 
     close = () => {
-        if (this.props.commandType === 'Push') {
-            this.props.navigator.pop();
+        const {commandType} = this.props;
+        if (commandType === 'Push') {
+            popTopScreen();
         } else {
-            this.props.navigator.dismissModal({
-                animationType: 'slide-down',
-            });
+            dismissModal();
         }
     };
 
     emitCanUpdateAccount = (enabled) => {
+        const {componentId} = this.props;
         const buttons = {
-            rightButtons: [{...this.rightButton, disabled: !enabled}],
+            rightButtons: [{...this.rightButton, enabled}],
         };
 
-        this.props.navigator.setButtons(buttons);
+        setButtons(componentId, buttons);
     };
 
     handleRequestError = (error) => {
@@ -239,10 +256,7 @@ export default class EditProfile extends PureComponent {
     handleRemoveProfileImage = () => {
         this.setState({profileImageRemove: true});
         this.emitCanUpdateAccount(true);
-        this.props.navigator.dismissModal({
-            animationType: 'none',
-        });
-    }
+    };
 
     uploadProfileImage = async () => {
         const {profileImage} = this.state;
@@ -279,19 +293,6 @@ export default class EditProfile extends PureComponent {
         });
     };
 
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            switch (event.id) {
-            case 'update-profile':
-                this.submitUser();
-                break;
-            case 'close-settings':
-                this.close();
-                break;
-            }
-        }
-    };
-
     onShowFileSizeWarning = (filename) => {
         const {formatMessage} = this.context.intl;
         const fileSizeWarning = formatMessage({
@@ -309,9 +310,7 @@ export default class EditProfile extends PureComponent {
         const {formatMessage} = this.context.intl;
         const fileTypeWarning = formatMessage({
             id: 'mobile.file_upload.unsupportedMimeType',
-            defaultMessage: 'Only files of the following MIME type can be uploaded: {mimeTypes}',
-        }, {
-            mimeTypes: VALID_MIME_TYPES.join('\n'),
+            defaultMessage: 'Only BMP, JPG or PNG images may be used for profile pictures.',
         });
 
         Alert.alert('', fileTypeWarning);
@@ -319,7 +318,7 @@ export default class EditProfile extends PureComponent {
 
     renderFirstNameSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {firstNameDisabled, theme} = this.props;
+        const {firstNameDisabled, theme, isLandscape} = this.props;
         const {firstName} = this.state;
 
         return (
@@ -334,13 +333,14 @@ export default class EditProfile extends PureComponent {
                 onChange={this.updateField}
                 theme={theme}
                 value={firstName}
+                isLandscape={isLandscape}
             />
         );
     };
 
     renderLastNameSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {lastNameDisabled, theme} = this.props;
+        const {lastNameDisabled, theme, isLandscape} = this.props;
         const {lastName} = this.state;
 
         return (
@@ -356,6 +356,7 @@ export default class EditProfile extends PureComponent {
                     onChange={this.updateField}
                     theme={theme}
                     value={lastName}
+                    isLandscape={isLandscape}
                 />
             </View>
         );
@@ -363,7 +364,7 @@ export default class EditProfile extends PureComponent {
 
     renderUsernameSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {currentUser, theme} = this.props;
+        const {currentUser, theme, isLandscape} = this.props;
         const {username} = this.state;
         const disabled = currentUser.auth_service !== '';
 
@@ -380,13 +381,14 @@ export default class EditProfile extends PureComponent {
                 onChange={this.updateField}
                 theme={theme}
                 value={username}
+                isLandscape={isLandscape}
             />
         );
     };
 
     renderEmailSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {currentUser, theme} = this.props;
+        const {currentUser, theme, isLandscape} = this.props;
         const {email} = this.state;
 
         let helpText;
@@ -441,6 +443,7 @@ export default class EditProfile extends PureComponent {
                     onChange={this.updateField}
                     theme={theme}
                     value={email}
+                    isLandscape={isLandscape}
                 />
             </View>
         );
@@ -448,7 +451,7 @@ export default class EditProfile extends PureComponent {
 
     renderNicknameSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {nicknameDisabled, theme} = this.props;
+        const {nicknameDisabled, theme, isLandscape} = this.props;
         const {nickname} = this.state;
 
         return (
@@ -464,13 +467,15 @@ export default class EditProfile extends PureComponent {
                 onChange={this.updateField}
                 theme={theme}
                 value={nickname}
+                isLandscape={isLandscape}
+                optional={true}
             />
         );
     };
 
     renderPositionSettings = () => {
         const {formatMessage} = this.context.intl;
-        const {positionDisabled, theme} = this.props;
+        const {positionDisabled, theme, isLandscape} = this.props;
         const {position} = this.state;
 
         return (
@@ -486,6 +491,8 @@ export default class EditProfile extends PureComponent {
                 onChange={this.updateField}
                 theme={theme}
                 value={position}
+                isLandscape={isLandscape}
+                optional={true}
             />
         );
     };
@@ -498,7 +505,6 @@ export default class EditProfile extends PureComponent {
         const {
             currentUser,
             theme,
-            navigator,
         } = this.props;
 
         const {
@@ -515,11 +521,10 @@ export default class EditProfile extends PureComponent {
                     currentUser={currentUser}
                     theme={theme}
                     blurTextBox={emptyFunction}
-                    browseFileTypes={DocumentPickerUtil.images()}
+                    browseFileTypes={DocumentPicker.types.images}
                     canTakeVideo={false}
                     canBrowseVideoLibrary={false}
                     maxFileSize={MAX_SIZE}
-                    navigator={navigator}
                     wrapper={true}
                     uploadFiles={this.handleUploadProfileImage}
                     removeProfileImage={this.handleRemoveProfileImage}
@@ -539,7 +544,7 @@ export default class EditProfile extends PureComponent {
                 </ProfilePictureButton>
             </View>
         );
-    }
+    };
 
     render() {
         const {theme} = this.props;
@@ -555,7 +560,7 @@ export default class EditProfile extends PureComponent {
             return (
                 <View style={[style.container, style.flex]}>
                     <StatusBar/>
-                    <Loading/>
+                    <Loading color={theme.centerChannelColor}/>
                 </View>
             );
         }

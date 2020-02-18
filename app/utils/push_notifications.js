@@ -15,12 +15,15 @@ import {
     createPostForNotificationReply,
     loadFromPushNotification,
 } from 'app/actions/views/root';
+import {dismissAllModals, popToRoot} from 'app/actions/navigation';
+
 import {ViewTypes} from 'app/constants';
 import {getLocalizedMessage} from 'app/i18n';
 import {getCurrentServerUrl, getAppCredentials} from 'app/init/credentials';
 import PushNotifications from 'app/push_notifications';
 import {getCurrentLocale} from 'app/selectors/i18n';
-import ephemeralStore from 'app/store/ephemeral_store';
+import EphemeralStore from 'app/store/ephemeral_store';
+import {waitForHydration} from 'app/store/utils';
 import {t} from 'app/utils/i18n';
 
 class PushNotificationUtils {
@@ -33,6 +36,7 @@ class PushNotificationUtils {
         this.store = store;
 
         PushNotifications.configure({
+            reduxStore: store,
             onRegister: this.onRegisterDevice,
             onNotification: this.onPushNotification,
             onReply: this.onPushNotificationReply,
@@ -42,64 +46,55 @@ class PushNotificationUtils {
     };
 
     loadFromNotification = async (notification) => {
-        await this.store.dispatch(loadFromPushNotification(notification, true));
+        // Set appStartedFromPushNotification to avoid channel screen to call selectInitialChannel
+        EphemeralStore.appStartedFromPushNotification = true;
+        await this.store.dispatch(loadFromPushNotification(notification));
 
-        if (!ephemeralStore.appStartedFromPushNotification) {
-            EventEmitter.emit(ViewTypes.NOTIFICATION_TAPPED);
+        // if we have a componentId means that the app is already initialized
+        const componentId = EphemeralStore.getNavigationTopComponentId();
+        if (componentId) {
+            EventEmitter.emit('close_channel_drawer');
+            EventEmitter.emit('close_settings_sidebar');
+
+            await dismissAllModals();
+            await popToRoot();
+
             PushNotifications.resetNotification();
         }
     };
 
     onPushNotification = async (deviceNotification) => {
         const {dispatch, getState} = this.store;
-        let unsubscribeFromStore = null;
-        let stopLoadingNotification = false;
-
-        // mark the app as started as soon as possible
-        if (!ephemeralStore.appStarted) {
-            ephemeralStore.appStartedFromPushNotification = true;
-        }
-
-        const {data, foreground, message, userInfo, userInteraction} = deviceNotification;
+        const {data, foreground, message, userInteraction} = deviceNotification;
         const notification = {
             data,
             message,
         };
 
-        if (userInfo) {
-            notification.localNotification = userInfo.localNotification;
-        }
-
         if (data.type === 'clear') {
             dispatch(markChannelViewedAndRead(data.channel_id, null, false));
-        } else {
+        } else if (data.type === 'message') {
             // get the posts for the channel as soon as possible
             retryGetPostsAction(getPosts(data.channel_id), dispatch, getState);
 
             if (foreground) {
                 EventEmitter.emit(ViewTypes.NOTIFICATION_IN_APP, notification);
-            } else if (userInteraction && !notification.localNotification) {
+            } else if (userInteraction && !notification?.data?.localNotification) {
                 EventEmitter.emit('close_channel_drawer');
                 if (getState().views.root.hydrationComplete) { //TODO: Replace when realm is ready
                     setTimeout(() => {
                         this.loadFromNotification(notification);
                     }, 0);
                 } else {
-                    const waitForHydration = () => {
-                        if (getState().views.root.hydrationComplete && !stopLoadingNotification) {
-                            stopLoadingNotification = true;
-                            unsubscribeFromStore();
-                            this.loadFromNotification(notification);
-                        }
-                    };
-
-                    unsubscribeFromStore = this.store.subscribe(waitForHydration);
+                    waitForHydration(this.store, () => {
+                        this.loadFromNotification(notification);
+                    });
                 }
             }
         }
     };
 
-    onPushNotificationReply = async (data, text, badge, completed) => {
+    onPushNotificationReply = async (data, text, completion) => {
         const {dispatch, getState} = this.store;
         const state = getState();
         const credentials = await getAppCredentials(); // TODO Change to handle multiple servers
@@ -138,33 +133,30 @@ class PushNotificationUtils {
                     userInfo: {
                         localNotification: true,
                         localTest: true,
+                        channel_id: data.channel_id,
                     },
                 });
-                console.warn('Failed to send reply to push notification', result.error); // eslint-disable-line no-console
-                completed();
+                completion();
                 return;
             }
 
-            if (badge >= 0) {
-                PushNotifications.setApplicationIconBadgeNumber(badge);
-            }
-
-            dispatch(markChannelViewedAndRead(data.channel_id));
             this.replyNotificationData = null;
-            completed();
+
+            PushNotifications.getDeliveredNotifications((notifications) => {
+                PushNotifications.setApplicationIconBadgeNumber(notifications.length);
+                completion();
+            });
         } else {
             this.replyNotificationData = {
                 data,
                 text,
-                badge,
-                completed,
+                completion,
             };
         }
     };
 
     onRegisterDevice = (data) => {
-        const {dispatch, getState} = this.store;
-        let unsubscribeFromStore = null;
+        const {dispatch} = this.store;
 
         let prefix;
         if (Platform.OS === 'ios') {
@@ -176,19 +168,18 @@ class PushNotificationUtils {
             prefix = General.PUSH_NOTIFY_ANDROID_REACT_NATIVE;
         }
 
-        ephemeralStore.deviceToken = `${prefix}:${data.token}`;
+        EphemeralStore.deviceToken = `${prefix}:${data.token}`;
 
         // TODO: Remove when realm is ready
-        const waitForHydration = () => {
-            if (getState().views.root.hydrationComplete && !this.configured) {
-                this.configured = true;
-                dispatch(setDeviceToken(ephemeralStore.deviceToken));
-                unsubscribeFromStore();
-            }
-        };
+        waitForHydration(this.store, () => {
+            this.configured = true;
+            dispatch(setDeviceToken(EphemeralStore.deviceToken));
+        });
+    };
 
-        unsubscribeFromStore = this.store.subscribe(waitForHydration);
-    }
+    getNotification = () => {
+        return PushNotifications.getNotification();
+    };
 }
 
 export default new PushNotificationUtils();

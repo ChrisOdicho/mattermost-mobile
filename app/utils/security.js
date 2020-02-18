@@ -3,7 +3,6 @@
 
 import {Client4} from 'mattermost-redux/client';
 import CookieManager from 'react-native-cookies';
-import urlParse from 'url-parse';
 
 let mfaPreflightDone = false;
 
@@ -17,10 +16,17 @@ export function getMfaPreflightDone() {
 
 export function setCSRFFromCookie(url) {
     return new Promise((resolve) => {
-        CookieManager.get(urlParse(url).origin, false).then((res) => {
+        CookieManager.get(url, false).then((res) => {
             const token = res.MMCSRF;
             if (token) {
-                Client4.setCSRF(token?.value || token);
+                let value = null;
+                if (typeof token === 'object' && Object.prototype.hasOwnProperty.call(token, 'value')) {
+                    value = token.value;
+                } else {
+                    value = token;
+                }
+
+                Client4.setCSRF(value);
             }
             resolve();
         });

@@ -7,8 +7,6 @@ import {Dimensions, View} from 'react-native';
 import ChannelLoader from 'app/components/channel_loader';
 import KeyboardLayout from 'app/components/layout/keyboard_layout';
 import NetworkIndicator from 'app/components/network_indicator';
-import SafeAreaView from 'app/components/safe_area_view';
-import StatusBar from 'app/components/status_bar';
 import PostTextbox from 'app/components/post_textbox';
 import LocalConfig from 'assets/config';
 
@@ -20,36 +18,31 @@ import ChannelBase, {ClientUpgradeListener, style} from './channel_base';
 export default class ChannelAndroid extends ChannelBase {
     render() {
         const {height} = Dimensions.get('window');
-        const {
-            navigator,
-        } = this.props;
 
         const channelLoaderStyle = [style.channelLoader, {height}];
         const drawerContent = (
-            <SafeAreaView navigator={navigator}>
-                <StatusBar/>
+            <>
                 <NetworkIndicator/>
                 <ChannelNavBar
-                    navigator={navigator}
                     openChannelDrawer={this.openChannelSidebar}
                     openSettingsDrawer={this.openSettingsSidebar}
                     onPress={this.goToChannelInfo}
                 />
                 <KeyboardLayout>
                     <View style={style.flex}>
-                        <ChannelPostList navigator={navigator}/>
+                        <ChannelPostList/>
                     </View>
                     <PostTextbox
                         ref={this.postTextbox}
-                        navigator={navigator}
+                        screenId={this.props.componentId}
                     />
                 </KeyboardLayout>
                 <ChannelLoader
                     height={height}
                     style={channelLoaderStyle}
                 />
-                {LocalConfig.EnableMobileClientUpgrade && <ClientUpgradeListener navigator={navigator}/>}
-            </SafeAreaView>
+                {LocalConfig.EnableMobileClientUpgrade && <ClientUpgradeListener/>}
+            </>
         );
 
         return this.renderChannel(drawerContent);

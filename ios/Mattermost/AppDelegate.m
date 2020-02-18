@@ -12,21 +12,19 @@
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTRootView.h>
 #import <React/RCTLinkingManager.h>
-#if __has_include(<React/RNSentry.h>)
-#import <React/RNSentry.h> // This is used for versions of react >= 0.40
-#else
-#import "RNSentry.h" // This is used for versions of react < 0.40
-#endif
-#import "RCCManager.h"
+#import <ReactNativeNavigation/ReactNativeNavigation.h>
 #import "RNNotifications.h"
 #import <UploadAttachments/UploadAttachments-Swift.h>
 #import <UserNotifications/UserNotifications.h>
 #import "Mattermost-Swift.h"
 #import <os/log.h>
+#import <RNHWKeyboardEvent.h>
 
 @implementation AppDelegate
 
-NSString* const NotificationClearAction = @"clear";
+NSString* const NOTIFICATION_MESSAGE_ACTION = @"message";
+NSString* const NOTIFICATION_CLEAR_ACTION = @"clear";
+NSString* const NOTIFICATION_UPDATE_BADGE_ACTION = @"update_badge";
 
 -(void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler {
   os_log(OS_LOG_DEFAULT, "Mattermost will attach session from handleEventsForBackgroundURLSession!! identifier=%{public}@", identifier);
@@ -53,25 +51,17 @@ NSString* const NotificationClearAction = @"clear";
     [[NSUserDefaults standardUserDefaults] synchronize];
   }
 
-  NSURL *jsCodeLocation;
+  NSURL *jsCodeLocation = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index" fallbackResource:nil];
+  [ReactNativeNavigation bootstrap:jsCodeLocation launchOptions:launchOptions];
 
-  jsCodeLocation = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index" fallbackResource:nil];
-
-  self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-  self.window.backgroundColor = [UIColor whiteColor];
-  [[RCCManager sharedInstance] initBridgeWithBundleURL:jsCodeLocation launchOptions:launchOptions];
   [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error: nil];
+
+  [RNNotifications startMonitorNotifications];
 
   os_log(OS_LOG_DEFAULT, "Mattermost started!!");
 
 
   return YES;
-}
-
-// Required to register for notifications
-- (void)application:(UIApplication *)application didRegisterUserNotificationSettings:(UIUserNotificationSettings *)notificationSettings
-{
-  [RNNotifications didRegisterUserNotificationSettings:notificationSettings];
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
@@ -83,7 +73,34 @@ NSString* const NotificationClearAction = @"clear";
   [RNNotifications didFailToRegisterForRemoteNotificationsWithError:error];
 }
 
--(void)cleanNotificationsFromChannel:(NSString *)channelId andUpdateBadge:(BOOL)updateBadge {
+// Required for the notification event.
+
+-(void)application:(UIApplication *)application didReceiveRemoteNotification:(nonnull NSDictionary *)userInfo fetchCompletionHandler:(nonnull void (^)(UIBackgroundFetchResult))completionHandler {
+  UIApplicationState state = [UIApplication sharedApplication].applicationState;
+  NSString* action = [userInfo objectForKey:@"type"];
+  NSString* channelId = [userInfo objectForKey:@"channel_id"];
+  NSString* ackId = [userInfo objectForKey:@"ack_id"];
+
+  if (action && [action isEqualToString: NOTIFICATION_CLEAR_ACTION]) {
+    // If received a notification that a channel was read, remove all notifications from that channel (only with app in foreground/background)
+    [self cleanNotificationsFromChannel:channelId];
+    RuntimeUtils *utils = [[RuntimeUtils alloc] init];
+    [[UploadSession shared] notificationReceiptWithNotificationId:ackId receivedAt:round([[NSDate date] timeIntervalSince1970] * 1000.0) type:action];
+    [utils delayWithSeconds:0.2 closure:^(void) {
+      // This is to notify the NotificationCenter that something has changed.
+      completionHandler(UIBackgroundFetchResultNewData);
+    }];
+
+    return;
+  } else if (state == UIApplicationStateInactive) {
+    // When the notification is opened
+    [self cleanNotificationsFromChannel:channelId];
+  }
+
+  completionHandler(UIBackgroundFetchResultNoData);
+}
+
+-(void)cleanNotificationsFromChannel:(NSString *)channelId {
   if ([UNUserNotificationCenter class]) {
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
     [center getDeliveredNotificationsWithCompletionHandler:^(NSArray<UNNotification *> * _Nonnull notifications) {
@@ -101,62 +118,8 @@ NSString* const NotificationClearAction = @"clear";
       }
 
       [center removeDeliveredNotificationsWithIdentifiers:notificationIds];
-      NSInteger removed = (NSInteger)[notificationIds count] + 1;
-      if (removed > 0 && updateBadge) {
-        NSInteger badge = [UIApplication sharedApplication].applicationIconBadgeNumber;
-        NSInteger count = badge - removed;
-        if (count > 0) {
-          [[UIApplication sharedApplication] setApplicationIconBadgeNumber:count];
-        } else {
-          [[UIApplication sharedApplication] setApplicationIconBadgeNumber:0];
-        }
-      }
     }];
   }
-}
-
-// Required for the notification event.
--(void)application:(UIApplication *)application didReceiveRemoteNotification:(nonnull NSDictionary *)userInfo fetchCompletionHandler:(nonnull void (^)(UIBackgroundFetchResult))completionHandler {
-  UIApplicationState state = [UIApplication sharedApplication].applicationState;
-  NSString* action = [userInfo objectForKey:@"type"];
-  NSString* channelId = [userInfo objectForKey:@"channel_id"];
-  NSString* ackId = [userInfo objectForKey:@"ack_id"];
-
-  if (action && [action isEqualToString: NotificationClearAction]) {
-    // If received a notification that a channel was read, remove all notifications from that channel (only with app in foreground/background)
-    [self cleanNotificationsFromChannel:channelId andUpdateBadge:NO];
-    RuntimeUtils *utils = [[RuntimeUtils alloc] init];
-    [[UploadSession shared] notificationReceiptWithNotificationId:ackId receivedAt:round([[NSDate date] timeIntervalSince1970] * 1000.0) type:action];
-    [utils delayWithSeconds:0.2 closure:^(void) {
-      // This is to notify the NotificationCenter that something has changed.
-      completionHandler(UIBackgroundFetchResultNewData);
-    }];
-
-    return;
-  } else if (state == UIApplicationStateInactive) {
-    // When the notification is opened
-    [self cleanNotificationsFromChannel:channelId andUpdateBadge:NO];
-  }
-
-  [RNNotifications didReceiveRemoteNotification:userInfo];
-  completionHandler(UIBackgroundFetchResultNoData);
-}
-
-// Required for the localNotification event.
-- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification
-{
-  [RNNotifications didReceiveLocalNotification:notification];
-}
-
-// Required for the notification actions.
-- (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forLocalNotification:(UILocalNotification *)notification withResponseInfo:(NSDictionary *)responseInfo completionHandler:(void (^)())completionHandler
-{
-  [RNNotifications handleActionWithIdentifier:identifier forLocalNotification:notification withResponseInfo:responseInfo completionHandler:completionHandler];
-}
-
-- (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forRemoteNotification:(NSDictionary *)userInfo withResponseInfo:(NSDictionary *)responseInfo completionHandler:(void (^)())completionHandler
-{
-  [RNNotifications handleActionWithIdentifier:identifier forRemoteNotification:userInfo withResponseInfo:responseInfo completionHandler:completionHandler];
 }
 
 // Required for deeplinking
@@ -177,4 +140,30 @@ NSString* const NotificationClearAction = @"clear";
                      restorationHandler:restorationHandler];
 }
 
+/*
+  https://mattermost.atlassian.net/browse/MM-10601
+  Required by react-native-hw-keyboard-event
+  (https://github.com/emilioicai/react-native-hw-keyboard-event)
+*/
+RNHWKeyboardEvent *hwKeyEvent = nil;
+- (NSMutableArray<UIKeyCommand *> *)keyCommands {
+  NSMutableArray *keys = [NSMutableArray new];
+  if (hwKeyEvent == nil) {
+    hwKeyEvent = [[RNHWKeyboardEvent alloc] init];
+  }
+  if ([hwKeyEvent isListening]) {
+    [keys addObject: [UIKeyCommand keyCommandWithInput:@"\r" modifierFlags:0 action:@selector(sendEnter:)]];
+    [keys addObject: [UIKeyCommand keyCommandWithInput:@"\r" modifierFlags:UIKeyModifierShift action:@selector(sendShiftEnter:)]];
+  }
+  return keys;
+}
+
+- (void)sendEnter:(UIKeyCommand *)sender {
+  NSString *selected = sender.input;
+  [hwKeyEvent sendHWKeyEvent:@"enter"];
+}
+- (void)sendShiftEnter:(UIKeyCommand *)sender {
+  NSString *selected = sender.input;
+  [hwKeyEvent sendHWKeyEvent:@"shift-enter"];
+}
 @end

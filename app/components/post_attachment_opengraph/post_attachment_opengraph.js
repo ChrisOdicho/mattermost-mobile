@@ -7,12 +7,11 @@ import {
     Image,
     Linking,
     Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
     View,
 } from 'react-native';
 
 import {TABLET_WIDTH} from 'app/components/sidebars/drawer_layout';
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 import {DeviceTypes} from 'app/constants';
 
 import ImageCacheManager from 'app/utils/image_cache_manager';
@@ -34,7 +33,6 @@ export default class PostAttachmentOpenGraph extends PureComponent {
         imagesMetadata: PropTypes.object,
         isReplyPost: PropTypes.bool,
         link: PropTypes.string.isRequired,
-        navigator: PropTypes.object.isRequired,
         openGraphData: PropTypes.object,
         theme: PropTypes.object.isRequired,
     };
@@ -47,9 +45,7 @@ export default class PostAttachmentOpenGraph extends PureComponent {
 
     componentDidMount() {
         this.mounted = true;
-    }
 
-    componentWillMount() {
         this.fetchData(this.props.link, this.props.openGraphData);
     }
 
@@ -66,6 +62,10 @@ export default class PostAttachmentOpenGraph extends PureComponent {
 
     componentWillUnmount() {
         this.mounted = false;
+    }
+
+    setItemRef = (ref) => {
+        this.itemRef = ref;
     }
 
     fetchData = (url, openGraphData) => {
@@ -89,6 +89,7 @@ export default class PostAttachmentOpenGraph extends PureComponent {
 
         const bestImage = getNearestPoint(bestDimensions, data.images, 'width', 'height');
         const imageUrl = bestImage.secure_url || bestImage.url;
+
         let ogImage;
         if (imagesMetadata && imagesMetadata[imageUrl]) {
             ogImage = imagesMetadata[imageUrl];
@@ -96,6 +97,12 @@ export default class PostAttachmentOpenGraph extends PureComponent {
 
         if (!ogImage) {
             ogImage = data.images.find((i) => i.url === imageUrl || i.secure_url === imageUrl);
+        }
+
+        // Fallback when the ogImage does not have dimensions but there is a metaImage defined
+        const metaImages = imagesMetadata ? Object.values(imagesMetadata) : null;
+        if ((!ogImage?.width || !ogImage?.height) && metaImages?.length) {
+            ogImage = metaImages[0];
         }
 
         let dimensions = bestDimensions;
@@ -139,9 +146,16 @@ export default class PostAttachmentOpenGraph extends PureComponent {
             ogImage = openGraphData.images.find((i) => i.url === openGraphImageUrl || i.secure_url === openGraphImageUrl);
         }
 
+        // Fallback when the ogImage does not have dimensions but there is a metaImage defined
+        const metaImages = imagesMetadata ? Object.values(imagesMetadata) : null;
+        if ((!ogImage?.width || !ogImage?.height) && metaImages?.length) {
+            ogImage = metaImages[0];
+        }
+
         if (ogImage?.width && ogImage?.height) {
             this.setImageSize(imageUrl, ogImage.width, ogImage.height);
         } else {
+            // if we get to this point there can be a scroll pop
             Image.getSize(imageUrl, (width, height) => {
                 this.setImageSize(imageUrl, width, height);
             }, () => null);
@@ -195,7 +209,7 @@ export default class PostAttachmentOpenGraph extends PureComponent {
             },
         }];
 
-        previewImageAtIndex(this.props.navigator, [this.refs.item], 0, files);
+        previewImageAtIndex([this.itemRef], 0, files);
     };
 
     renderDescription = () => {
@@ -237,18 +251,19 @@ export default class PostAttachmentOpenGraph extends PureComponent {
 
         return (
             <View
-                ref='item'
+                ref={this.setItemRef}
                 style={[style.imageContainer, {width, height}]}
             >
-                <TouchableWithoutFeedback
+                <TouchableWithFeedback
                     onPress={this.handlePreviewImage}
+                    type={'none'}
                 >
                     <Image
                         style={[style.image, {width, height}]}
                         source={source}
                         resizeMode='contain'
                     />
-                </TouchableWithoutFeedback>
+                </TouchableWithFeedback>
             </View>
         );
     };
@@ -287,9 +302,10 @@ export default class PostAttachmentOpenGraph extends PureComponent {
         if (title) {
             siteTitle = (
                 <View style={style.wrapper}>
-                    <TouchableOpacity
+                    <TouchableWithFeedback
                         style={style.flex}
                         onPress={this.goToLink}
+                        type={'opacity'}
                     >
                         <Text
                             style={[style.siteSubtitle, {marginRight: isReplyPost ? 10 : 0}]}
@@ -298,7 +314,7 @@ export default class PostAttachmentOpenGraph extends PureComponent {
                         >
                             {title}
                         </Text>
-                    </TouchableOpacity>
+                    </TouchableWithFeedback>
                 </View>
             );
         }

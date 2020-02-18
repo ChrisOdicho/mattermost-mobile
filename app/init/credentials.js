@@ -7,7 +7,7 @@ import * as KeyChain from 'react-native-keychain';
 import {Client4} from 'mattermost-redux/client';
 
 import mattermostManaged from 'app/mattermost_managed';
-import ephemeralStore from 'app/store/ephemeral_store';
+import EphemeralStore from 'app/store/ephemeral_store';
 import {setCSRFFromCookie} from 'app/utils/security';
 
 const CURRENT_SERVER = '@currentServerUrl';
@@ -26,9 +26,14 @@ export const setAppCredentials = (deviceToken, currentUserId, token, url) => {
         try {
             const username = `${deviceToken}, ${currentUserId}`;
 
-            ephemeralStore.deviceToken = deviceToken;
+            EphemeralStore.deviceToken = deviceToken;
+            EphemeralStore.currentServerUrl = url;
             AsyncStorage.setItem(CURRENT_SERVER, url);
-            KeyChain.setInternetCredentials(url, username, token, {accessGroup: mattermostManaged.appGroupIdentifier});
+            const options = {
+                accessGroup: mattermostManaged.appGroupIdentifier,
+                securityLevel: 'SECURE_SOFTWARE',
+            };
+            KeyChain.setInternetCredentials(url, username, token, options);
         } catch (e) {
             console.warn('could not set credentials', e); //eslint-disable-line no-console
         }
@@ -39,6 +44,7 @@ export const getAppCredentials = async () => {
     const serverUrl = await AsyncStorage.getItem(CURRENT_SERVER);
 
     if (serverUrl) {
+        EphemeralStore.currentServerUrl = serverUrl;
         return getInternetCredentials(serverUrl);
     }
 
@@ -59,6 +65,7 @@ export const removeAppCredentials = async () => {
     }
 
     KeyChain.resetGenericPassword();
+    EphemeralStore.currentServerUrl = null;
     AsyncStorage.removeItem(CURRENT_SERVER);
 };
 
@@ -111,7 +118,7 @@ async function getInternetCredentials(url) {
             const [deviceToken, currentUserId] = usernameParsed;
 
             if (token && token !== 'undefined') {
-                ephemeralStore.deviceToken = deviceToken;
+                EphemeralStore.deviceToken = deviceToken;
                 Client4.setUserId(currentUserId);
                 Client4.setUrl(url);
                 Client4.setToken(token);

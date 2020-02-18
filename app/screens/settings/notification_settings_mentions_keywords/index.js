@@ -4,12 +4,14 @@
 import {connect} from 'react-redux';
 
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
+import {isLandscape} from 'app/selectors/device';
 
 import NotificationSettingsMentionsKeywords from './notification_settings_mentions_keywords';
 
 function mapStateToProps(state) {
     return {
         theme: getTheme(state),
+        isLandscape: isLandscape(state),
     };
 }
 

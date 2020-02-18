@@ -3,7 +3,7 @@
 
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
-import {Platform, StyleSheet, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import RNFetchBlob from 'rn-fetch-blob';
 import {AnimatedCircularProgress} from 'react-native-circular-progress';
 
@@ -15,6 +15,9 @@ import FileUploadRetry from 'app/components/file_upload_preview/file_upload_retr
 import FileUploadRemove from 'app/components/file_upload_preview/file_upload_remove';
 import mattermostBucket from 'app/mattermost_bucket';
 import {buildFileUploadData, encodeHeaderURIStringToUTF8} from 'app/utils/file';
+import {emptyFunction} from 'app/utils/general';
+import ImageCacheManager from 'app/utils/image_cache_manager';
+import {makeStyleSheetFromTheme, changeOpacity} from 'app/utils/theme';
 
 export default class FileUploadItem extends PureComponent {
     static propTypes = {
@@ -35,17 +38,18 @@ export default class FileUploadItem extends PureComponent {
     };
 
     componentDidMount() {
-        if (this.props.file.loading) {
-            this.uploadFile();
+        const {file} = this.props;
+        if (file.loading) {
+            this.downloadAndUploadFile(file);
         }
     }
 
-    componentWillReceiveProps(nextProps) {
+    componentDidUpdate(prevProps) {
+        const {file: prevFile} = prevProps;
         const {file} = this.props;
-        const {file: nextFile} = nextProps;
 
-        if (file.failed !== nextFile.failed && nextFile.loading) {
-            this.uploadFile();
+        if (prevFile.failed !== file.failed && file.loading) {
+            this.downloadAndUploadFile(file);
         }
     }
 
@@ -109,8 +113,22 @@ export default class FileUploadItem extends PureComponent {
         return false;
     };
 
-    uploadFile = async () => {
-        const {channelId, file} = this.props;
+    downloadAndUploadFile = async (file) => {
+        const newFile = {...file};
+        if (newFile.localPath.startsWith('http')) {
+            try {
+                newFile.localPath = await ImageCacheManager.cache(newFile.name, newFile.localPath, emptyFunction);
+            } catch (e) {
+                this.handleUploadError(e);
+                return;
+            }
+        }
+
+        this.uploadFile(newFile);
+    }
+
+    uploadFile = async (file) => {
+        const {channelId} = this.props;
         const fileData = buildFileUploadData(file);
 
         const headers = {
@@ -146,15 +164,14 @@ export default class FileUploadItem extends PureComponent {
     };
 
     renderProgress = (fill) => {
+        const styles = getStyleSheet(this.props.theme);
         const realFill = Number(fill.toFixed(0));
 
         return (
-            <View style={styles.progressContent}>
-                <View style={styles.progressCirclePercentage}>
-                    <Text style={styles.progressText}>
-                        {`${realFill}%`}
-                    </Text>
-                </View>
+            <View>
+                <Text style={styles.progressText}>
+                    {`${realFill}%`}
+                </Text>
             </View>
         );
     };
@@ -167,29 +184,28 @@ export default class FileUploadItem extends PureComponent {
             theme,
         } = this.props;
         const {progress} = this.state;
+        const styles = getStyleSheet(theme);
         let filePreviewComponent;
 
         if (this.isImageType()) {
             filePreviewComponent = (
-                <FileAttachmentImage
-                    file={file}
-                    imageSize='fullsize'
-                    imageHeight={100}
-                    imageWidth={100}
-                    wrapperHeight={100}
-                    wrapperWidth={100}
-                />
+                <View style={styles.filePreview}>
+                    <FileAttachmentImage
+                        file={file}
+                        theme={theme}
+                    />
+                </View>
             );
         } else {
             filePreviewComponent = (
-                <FileAttachmentIcon
-                    file={file}
-                    theme={theme}
-                    imageHeight={100}
-                    imageWidth={100}
-                    wrapperHeight={100}
-                    wrapperWidth={100}
-                />
+                <View style={styles.filePreview}>
+                    <FileAttachmentIcon
+                        file={file}
+                        theme={theme}
+                        wrapperHeight={53}
+                        wrapperWidth={53}
+                    />
+                </View>
             );
         }
 
@@ -198,7 +214,7 @@ export default class FileUploadItem extends PureComponent {
                 key={file.clientId}
                 style={styles.preview}
             >
-                <View style={styles.previewShadow}>
+                <View style={styles.previewContainer}>
                     {filePreviewComponent}
                     {file.failed &&
                     <FileUploadRetry
@@ -209,13 +225,12 @@ export default class FileUploadItem extends PureComponent {
                     {file.loading && !file.failed &&
                     <View style={styles.progressCircleContent}>
                         <AnimatedCircularProgress
-                            size={100}
+                            size={36}
                             fill={progress}
-                            width={4}
+                            width={2}
                             backgroundColor='rgba(255, 255, 255, 0.5)'
                             tintColor='white'
                             rotation={0}
-                            style={styles.progressCircle}
                         >
                             {this.renderProgress}
                         </AnimatedCircularProgress>
@@ -223,6 +238,7 @@ export default class FileUploadItem extends PureComponent {
                     }
                 </View>
                 <FileUploadRemove
+                    theme={this.props.theme}
                     channelId={channelId}
                     clientId={file.clientId}
                     onPress={this.handleRemoveFile}
@@ -233,58 +249,35 @@ export default class FileUploadItem extends PureComponent {
     }
 }
 
-const styles = StyleSheet.create({
+const getStyleSheet = makeStyleSheetFromTheme((theme) => ({
     preview: {
-        justifyContent: 'flex-end',
-        height: 115,
-        width: 115,
+        paddingTop: 5,
+        marginLeft: 12,
     },
-    previewShadow: {
-        height: 100,
-        width: 100,
-        elevation: 10,
-        ...Platform.select({
-            ios: {
-                backgroundColor: '#fff',
-                shadowColor: '#000',
-                shadowOpacity: 0.5,
-                shadowRadius: 4,
-                shadowOffset: {
-                    width: 0,
-                    height: 0,
-                },
-            },
-        }),
-    },
-    progressCircle: {
-        alignItems: 'center',
-        height: '100%',
-        justifyContent: 'center',
-        width: '100%',
+    previewContainer: {
+        height: 56,
+        width: 56,
+        borderRadius: 4,
     },
     progressCircleContent: {
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        height: 100,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        height: 56,
+        width: 56,
         justifyContent: 'center',
         position: 'absolute',
-        width: 100,
-    },
-    progressCirclePercentage: {
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'center',
-    },
-    progressContent: {
-        alignItems: 'center',
-        height: '100%',
-        justifyContent: 'center',
-        left: 0,
-        position: 'absolute',
-        width: '100%',
+        borderRadius: 4,
     },
     progressText: {
         color: 'white',
-        fontSize: 18,
+        fontSize: 11,
+        fontWeight: 'bold',
     },
-});
+    filePreview: {
+        borderColor: changeOpacity(theme.centerChannelColor, 0.15),
+        borderRadius: 4,
+        borderWidth: 1,
+        width: 56,
+        height: 56,
+    },
+}));

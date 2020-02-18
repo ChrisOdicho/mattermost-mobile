@@ -2,15 +2,16 @@
 // See LICENSE.txt for license information.
 
 import React from 'react';
+import {View} from 'react-native';
 
 import {THREAD} from 'app/constants/screen';
-
-import Loading from 'app/components/loading';
 import KeyboardLayout from 'app/components/layout/keyboard_layout';
+import Loading from 'app/components/loading';
 import PostList from 'app/components/post_list';
 import PostTextbox from 'app/components/post_textbox';
 import SafeAreaView from 'app/components/safe_area_view';
 import StatusBar from 'app/components/status_bar';
+import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 
 import ThreadBase from './thread_base';
 
@@ -19,10 +20,10 @@ export default class ThreadAndroid extends ThreadBase {
         const {
             channelId,
             myMember,
-            navigator,
             postIds,
             rootId,
             channelIsArchived,
+            theme,
         } = this.props;
 
         let content;
@@ -36,7 +37,6 @@ export default class ThreadAndroid extends ThreadBase {
                     currentUserId={myMember && myMember.user_id}
                     lastViewedAt={this.state.lastViewedAt}
                     lastPostIndex={-1}
-                    navigator={navigator}
                     onPostPress={this.hideKeyboard}
                     location={THREAD}
                 />
@@ -44,23 +44,25 @@ export default class ThreadAndroid extends ThreadBase {
 
             postTextBox = (
                 <PostTextbox
-                    channelIsArchived={channelIsArchived}
-                    rootId={rootId}
                     channelId={channelId}
-                    navigator={navigator}
+                    channelIsArchived={channelIsArchived}
                     onCloseChannel={this.onCloseChannel}
+                    rootId={rootId}
+                    screenId={this.props.componentId}
                 />
             );
         } else {
             content = (
-                <Loading/>
+                <Loading color={theme.centerChannelColor}/>
             );
         }
 
+        const style = getStyleSheet(theme);
         return (
             <SafeAreaView>
                 <StatusBar/>
                 <KeyboardLayout>
+                    <View style={style.separator}/>
                     {content}
                     {postTextBox}
                 </KeyboardLayout>
@@ -68,3 +70,10 @@ export default class ThreadAndroid extends ThreadBase {
         );
     }
 }
+
+const getStyleSheet = makeStyleSheetFromTheme((theme) => ({
+    separator: {
+        backgroundColor: changeOpacity(theme.centerChannelColor, 0.2),
+        height: 1,
+    },
+}));

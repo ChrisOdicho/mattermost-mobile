@@ -9,17 +9,13 @@ import ProfilePictureButton from './profile_picture_button.js';
 
 import {Client4} from 'mattermost-redux/client';
 
-describe('profile_picture_button', () => {
-    const navigator = {
-        setOnNavigatorEvent: jest.fn(),
-        setButtons: jest.fn(),
-        dismissModal: jest.fn(),
-        push: jest.fn(),
-    };
+jest.mock('react-native-image-picker', () => ({
+    launchCamera: jest.fn(),
+}));
 
+describe('profile_picture_button', () => {
     const baseProps = {
         theme: Preferences.THEMES.default,
-        navigator,
         currentUser: {
             first_name: 'Dwight',
             last_name: 'Schrute',

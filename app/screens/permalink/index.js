@@ -15,14 +15,12 @@ import {makeGetPostIdsAroundPost, getPost} from 'mattermost-redux/selectors/enti
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
 import {getCurrentTeamId} from 'mattermost-redux/selectors/entities/teams';
 import {getCurrentUserId} from 'mattermost-redux/selectors/entities/users';
+import {isLandscape} from 'app/selectors/device';
 
 import {
     handleSelectChannel,
     loadThreadIfNecessary,
-    setChannelDisplayName,
-    setChannelLoading,
 } from 'app/actions/views/channel';
-import {showSearchModal} from 'app/actions/views/search';
 import {handleTeamChange} from 'app/actions/views/select_team';
 
 import Permalink from './permalink';
@@ -57,6 +55,7 @@ function makeMapStateToProps() {
             myMembers: getMyChannelMemberships(state),
             postIds,
             theme: getTheme(state),
+            isLandscape: isLandscape(state),
         };
     };
 }
@@ -72,9 +71,6 @@ function mapDispatchToProps(dispatch) {
             joinChannel,
             loadThreadIfNecessary,
             selectPost,
-            setChannelDisplayName,
-            setChannelLoading,
-            showSearchModal,
         }, dispatch),
     };
 }

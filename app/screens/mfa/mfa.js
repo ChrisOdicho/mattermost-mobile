@@ -25,10 +25,10 @@ import {GlobalStyles} from 'app/styles';
 import {preventDoubleTap} from 'app/utils/tap';
 import {t} from 'app/utils/i18n';
 import {setMfaPreflightDone} from 'app/utils/security';
+import {popTopScreen} from 'app/actions/navigation';
 
 export default class Mfa extends PureComponent {
     static propTypes = {
-        navigator: PropTypes.object,
         actions: PropTypes.shape({
             login: PropTypes.func.isRequired,
         }).isRequired,
@@ -52,11 +52,11 @@ export default class Mfa extends PureComponent {
         }
     }
 
-    componentWillReceiveProps(nextProps) {
+    componentDidUpdate(prevProps) {
         // In case the login is successful the previous scene (login) will take care of the transition
-        if (this.props.loginRequest.status === RequestStatus.STARTED &&
-            nextProps.loginRequest.status === RequestStatus.FAILURE) {
-            this.props.navigator.pop({animated: true});
+        if (prevProps.loginRequest.status === RequestStatus.STARTED &&
+            this.props.loginRequest.status === RequestStatus.FAILURE) {
+            popTopScreen();
         }
     }
 

@@ -10,8 +10,15 @@ import {getCurrentChannelId} from 'mattermost-redux/selectors/entities/channels'
 import {getCurrentUserId} from 'mattermost-redux/selectors/entities/users';
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
 
-import {loadPostsIfNecessaryWithRetry, loadThreadIfNecessary, increasePostVisibility, refreshChannelWithRetry} from 'app/actions/views/channel';
+import {
+    loadPostsIfNecessaryWithRetry,
+    loadThreadIfNecessary,
+    increasePostVisibility,
+    increasePostVisibilityByOne,
+    refreshChannelWithRetry,
+} from 'app/actions/views/channel';
 import {recordLoadTime} from 'app/actions/views/root';
+import {isLandscape} from 'app/selectors/device';
 
 import ChannelPostList from './channel_post_list';
 
@@ -30,6 +37,7 @@ function mapStateToProps(state) {
         loadMorePostsVisible: state.views.channel.loadMorePostsVisible,
         refreshing: state.views.channel.refreshing,
         theme: getTheme(state),
+        isLandscape: isLandscape(state),
     };
 }
 
@@ -39,6 +47,7 @@ function mapDispatchToProps(dispatch) {
             loadPostsIfNecessaryWithRetry,
             loadThreadIfNecessary,
             increasePostVisibility,
+            increasePostVisibilityByOne,
             selectPost,
             recordLoadTime,
             refreshChannelWithRetry,

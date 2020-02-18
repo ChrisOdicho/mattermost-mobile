@@ -7,14 +7,13 @@ import {
     ScrollView,
     View,
 } from 'react-native';
-
 import {Preferences} from 'mattermost-redux/constants';
 
 import FormattedText from 'app/components/formatted_text';
 import StatusBar from 'app/components/status_bar';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 import {t} from 'app/utils/i18n';
-
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import Section from 'app/screens/settings/section';
 import SectionItem from 'app/screens/settings/section_item';
 
@@ -25,8 +24,8 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
         const {
             enableEmailBatching,
             sendEmailNotifications,
-            siteName,
             theme,
+            isLandscape,
         } = this.props;
         const {newInterval} = this.state;
         const style = getStyleSheet(theme);
@@ -36,10 +35,10 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                 headerId={t('mobile.notification_settings.email.send')}
                 headerDefaultMessage='SEND EMAIL NOTIFICATIONS'
                 footerId={t('user.settings.notifications.emailInfo')}
-                footerDefaultMessage='Email notifications are sent for mentions and direct messages when you are offline or away from {siteName} for more than 5 minutes.'
-                footerValues={{siteName}}
+                footerDefaultMessage='Email notifications are sent for mentions and direct messages when you are offline or away for more than 5 minutes.'
                 disableFooter={!sendEmailNotifications}
                 theme={theme}
+                isLandscape={isLandscape}
             >
                 {sendEmailNotifications &&
                 <View>
@@ -55,6 +54,7 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                         actionValue={Preferences.INTERVAL_IMMEDIATE.toString()}
                         selected={newInterval === Preferences.INTERVAL_IMMEDIATE.toString()}
                         theme={theme}
+                        isLandscape={isLandscape}
                     />
                     <View style={style.separator}/>
                     {enableEmailBatching &&
@@ -71,6 +71,7 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                             actionValue={Preferences.INTERVAL_FIFTEEN_MINUTES.toString()}
                             selected={newInterval === Preferences.INTERVAL_FIFTEEN_MINUTES.toString()}
                             theme={theme}
+                            isLandscape={isLandscape}
                         />
                         <View style={style.separator}/>
                         <SectionItem
@@ -85,6 +86,7 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                             actionValue={Preferences.INTERVAL_HOUR.toString()}
                             selected={newInterval === Preferences.INTERVAL_HOUR.toString()}
                             theme={theme}
+                            isLandscape={isLandscape}
                         />
                         <View style={style.separator}/>
                     </View>
@@ -101,6 +103,7 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                         actionValue={Preferences.INTERVAL_NEVER.toString()}
                         selected={newInterval === Preferences.INTERVAL_NEVER.toString()}
                         theme={theme}
+                        isLandscape={isLandscape}
                     />
                 </View>
                 }
@@ -108,7 +111,7 @@ class NotificationSettingsEmailIos extends NotificationSettingsEmailBase {
                 <FormattedText
                     id='user.settings.general.emailHelp2'
                     defaultMessage='Email has been disabled by your System Administrator. No notification emails will be sent until it is enabled.'
-                    style={style.disabled}
+                    style={[style.disabled, padding(isLandscape)]}
                 />
                 }
             </Section>

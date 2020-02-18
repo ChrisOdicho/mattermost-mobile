@@ -3,11 +3,15 @@
 
 import React from 'react';
 import {shallow} from 'enzyme';
-import {
-    TouchableOpacity,
-} from 'react-native';
+import {TouchableOpacity} from 'react-native';
+
+// import RNFetchBlob from 'rn-fetch-blob';
 
 import Preferences from 'mattermost-redux/constants/preferences';
+
+import * as NavigationActions from 'app/actions/navigation';
+
+// import BottomSheet from 'app/utils/bottom_sheet';
 
 import ImagePreview from './image_preview';
 
@@ -18,6 +22,12 @@ jest.mock('react-native-doc-viewer', () => {
         OpenFile: jest.fn(),
     };
 });
+
+// jest.mock('react-native-permissions', () => {
+//     return {
+//         check: jest.fn(),
+//     };
+// });
 
 describe('ImagePreview', () => {
     const baseProps = {
@@ -30,10 +40,10 @@ describe('ImagePreview', () => {
         ],
         getItemMeasures: jest.fn(),
         index: 0,
-        navigator: {setStyle: jest.fn()},
         origin: {},
         target: {},
         theme: Preferences.THEMES.default,
+        componentId: 'component-id',
     };
 
     test('should match snapshot', () => {
@@ -55,6 +65,21 @@ describe('ImagePreview', () => {
         expect(wrapper.instance().renderDownloadButton()).toMatchSnapshot();
     });
 
+    test('should match snapshot and not renderDownloadButton for local files', () => {
+        const props = {
+            ...baseProps,
+            files: [{caption: 'Caption 1', source: 'source', data: {localPath: 'path'}}],
+        };
+
+        const wrapper = shallow(
+            <ImagePreview {...props}/>,
+            {context: {intl: {formatMessage: jest.fn()}}},
+        );
+
+        expect(wrapper.instance().renderDownloadButton()).toMatchSnapshot();
+        expect(wrapper.instance().renderDownloadButton()).toBeNull();
+    });
+
     test('should match state on handleChangeImage', () => {
         const wrapper = shallow(
             <ImagePreview {...baseProps}/>,
@@ -67,21 +92,135 @@ describe('ImagePreview', () => {
         expect(wrapper.state('index')).toEqual(1);
     });
 
-    test('should match call getItemMeasures & navigator.setStyle on close', () => {
+    test('should match call getItemMeasures & mergeNavigationOptions on close', () => {
+        const mergeNavigationOptions = jest.spyOn(NavigationActions, 'mergeNavigationOptions');
+
         const getItemMeasures = jest.fn();
-        const navigator = {setStyle: jest.fn()};
         const wrapper = shallow(
             <ImagePreview
                 {...baseProps}
                 getItemMeasures={getItemMeasures}
-                navigator={navigator}
             />,
             {context: {intl: {formatMessage: jest.fn()}}},
         );
 
         wrapper.instance().close();
 
-        expect(navigator.setStyle).toHaveBeenCalledTimes(2);
-        expect(navigator.setStyle).toBeCalledWith({screenBackgroundColor: 'transparent'});
+        expect(mergeNavigationOptions).toHaveBeenCalledTimes(2);
+        expect(mergeNavigationOptions).toHaveBeenCalledWith(
+            baseProps.componentId,
+            {
+                layout: {
+                    backgroundColor: 'transparent',
+                },
+            },
+        );
     });
+
+    //     test('should show bottom sheet when showDownloadOptionsIOS is called for existing video', async () => {
+    //         BottomSheet.showBottomSheetWithOptions = jest.fn();
+    //         RNFetchBlob.fs.exists = jest.fn().mockReturnValue(true);
+    //         const formatMessage = jest.fn(({defaultMessage}) => {
+    //             return defaultMessage;
+    //         });
+
+    //         const index = 0;
+    //         const files = [{
+    //             caption: 'caption',
+    //             data: {
+    //                 mime_type: 'video/mp4',
+    //             },
+    //         }];
+    //         const props = {
+    //             ...baseProps,
+    //             index,
+    //             files,
+    //         };
+    //         const wrapper = shallow(
+    //             <ImagePreview
+    //                 {...props}
+    //             />,
+    //             {context: {intl: {formatMessage}}},
+    //         );
+
+    //         const instance = wrapper.instance();
+    //         await instance.showDownloadOptionsIOS();
+
+    //         const expectedOptions = {
+    //             options: ['Save Video', 'Cancel'],
+    //             cancelButtonIndex: 1,
+    //             anchor: null,
+    //             title: files[index].caption,
+    //         };
+    //         expect(BottomSheet.showBottomSheetWithOptions).
+    //             toHaveBeenCalledWith(expectedOptions, expect.any(Function));
+    //     });
+
+    //     test('should not show bottom sheet when showDownloadOptionsIOS is called for non-existing video', async () => {
+    //         BottomSheet.showBottomSheetWithOptions = jest.fn();
+    //         RNFetchBlob.fs.exists = jest.fn().mockReturnValue(false);
+
+    //         const index = 0;
+    //         const files = [{
+    //             caption: 'caption',
+    //             data: {
+    //                 mime_type: 'video/mp4',
+    //             },
+    //         }];
+    //         const props = {
+    //             ...baseProps,
+    //             index,
+    //             files,
+    //         };
+    //         const wrapper = shallow(
+    //             <ImagePreview
+    //                 {...props}
+    //             />,
+    //             {context: {intl: {formatMessage: jest.fn()}}},
+    //         );
+
+    //         const instance = wrapper.instance();
+    //         await instance.showDownloadOptionsIOS();
+
+    //         expect(BottomSheet.showBottomSheetWithOptions).not.toHaveBeenCalled();
+    //     });
+
+    //     test('should show bottom sheet when showDownloadOptionsIOS is called for image', async () => {
+    //         BottomSheet.showBottomSheetWithOptions = jest.fn();
+    //         RNFetchBlob.fs.exists = jest.fn().mockReturnValue(true);
+    //         const formatMessage = jest.fn(({defaultMessage}) => {
+    //             return defaultMessage;
+    //         });
+
+    //         const index = 0;
+    //         const files = [{
+    //             caption: 'caption',
+    //             data: {
+    //                 mime_type: 'image/jpeg',
+    //             },
+    //         }];
+    //         const props = {
+    //             ...baseProps,
+    //             index,
+    //             files,
+    //         };
+    //         const wrapper = shallow(
+    //             <ImagePreview
+    //                 {...props}
+    //             />,
+    //             {context: {intl: {formatMessage}}},
+    //         );
+
+    //         const instance = wrapper.instance();
+    //         await instance.showDownloadOptionsIOS();
+
+//         const expectedOptions = {
+//             options: ['Save Image', 'Cancel'],
+//             cancelButtonIndex: 1,
+//             anchor: null,
+//             title: files[index].caption,
+//         };
+//         expect(BottomSheet.showBottomSheetWithOptions).
+//             toHaveBeenCalledWith(expectedOptions, expect.any(Function));
+//     });
 });

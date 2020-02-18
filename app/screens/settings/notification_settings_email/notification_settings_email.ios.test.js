@@ -6,17 +6,9 @@ import {shallow} from 'enzyme';
 
 import Preferences from 'mattermost-redux/constants/preferences';
 
-import {emptyFunction} from 'app/utils/general';
-
 import SectionItem from 'app/screens/settings/section_item';
 
 import NotificationSettingsEmailIos from './notification_settings_email.ios.js';
-
-jest.mock('Platform', () => {
-    const Platform = require.requireActual('Platform');
-    Platform.OS = 'ios';
-    return Platform;
-});
 
 jest.mock('app/utils/theme', () => {
     const original = require.requireActual('app/utils/theme');
@@ -29,21 +21,24 @@ jest.mock('app/utils/theme', () => {
 describe('NotificationSettingsEmailIos', () => {
     const baseProps = {
         currentUser: {id: 'current_user_id'},
+        notifyProps: {
+            email: 'true',
+        },
         emailInterval: '30',
         enableEmailBatching: false,
-        navigator: {setOnNavigatorEvent: emptyFunction},
         actions: {
             updateMe: jest.fn(),
             savePreferences: jest.fn(),
         },
         sendEmailNotifications: true,
-        siteName: 'Mattermost',
         theme: Preferences.THEMES.default,
+        componentId: 'component-id',
+        isLandscape: false,
     };
 
     test('should match snapshot, renderEmailSection', () => {
         const wrapper = shallow(
-            <NotificationSettingsEmailIos {...baseProps}/>
+            <NotificationSettingsEmailIos {...baseProps}/>,
         );
 
         expect(wrapper.instance().renderEmailSection()).toMatchSnapshot();
@@ -51,19 +46,19 @@ describe('NotificationSettingsEmailIos', () => {
 
     test('should save preference on back button only if email interval has changed', () => {
         const wrapper = shallow(
-            <NotificationSettingsEmailIos {...baseProps}/>
+            <NotificationSettingsEmailIos {...baseProps}/>,
         );
 
         const instance = wrapper.instance();
 
         // should not save preference if email interval has not changed.
-        instance.onNavigatorEvent({type: 'ScreenChangedEvent', id: 'willDisappear'});
+        instance.componentDidDisappear();
         expect(baseProps.actions.updateMe).toHaveBeenCalledTimes(0);
         expect(baseProps.actions.savePreferences).toHaveBeenCalledTimes(0);
 
         // should save preference if email interval has changed.
         wrapper.setState({newInterval: '0'});
-        instance.onNavigatorEvent({type: 'ScreenChangedEvent', id: 'willDisappear'});
+        instance.componentDidDisappear();
         expect(baseProps.actions.updateMe).toHaveBeenCalledTimes(1);
         expect(baseProps.actions.savePreferences).toHaveBeenCalledTimes(1);
     });
@@ -73,7 +68,7 @@ describe('NotificationSettingsEmailIos', () => {
         const updateMe = jest.fn();
         const props = {...baseProps, actions: {savePreferences, updateMe}};
         const wrapper = shallow(
-            <NotificationSettingsEmailIos {...props}/>
+            <NotificationSettingsEmailIos {...props}/>,
         );
 
         wrapper.setState({email: 'true', newInterval: 30});
@@ -88,7 +83,7 @@ describe('NotificationSettingsEmailIos', () => {
 
     test('should match state on setEmailInterval', () => {
         const wrapper = shallow(
-            <NotificationSettingsEmailIos {...baseProps}/>
+            <NotificationSettingsEmailIos {...baseProps}/>,
         );
 
         wrapper.setState({interval: '0'});
@@ -108,7 +103,7 @@ describe('NotificationSettingsEmailIos', () => {
                 {...baseProps}
                 sendEmailNotifications={false}
                 enableEmailBatching={false}
-            />
+            />,
         );
 
         expect(wrapper.find(SectionItem).exists()).toBe(false);
@@ -136,7 +131,7 @@ describe('NotificationSettingsEmailIos', () => {
     test('should call props.actions.savePreferences on saveUserNotifyProps', () => {
         const props = {...baseProps, actions: {savePreferences: jest.fn(), updateMe: jest.fn()}};
         const wrapper = shallow(
-            <NotificationSettingsEmailIos {...props}/>
+            <NotificationSettingsEmailIos {...props}/>,
         );
 
         wrapper.setState({email: 'true', newInterval: '3600'});

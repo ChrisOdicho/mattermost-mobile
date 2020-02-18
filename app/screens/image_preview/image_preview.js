@@ -6,7 +6,6 @@ import PropTypes from 'prop-types';
 import {
     Alert,
     Animated,
-    Image,
     Platform,
     SafeAreaView,
     StatusBar,
@@ -14,6 +13,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    findNodeHandle,
 } from 'react-native';
 import RNFetchBlob from 'rn-fetch-blob';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -21,16 +21,23 @@ import LinearGradient from 'react-native-linear-gradient';
 import {intlShape} from 'react-intl';
 import Permissions from 'react-native-permissions';
 import Gallery from 'react-native-image-gallery';
+import DeviceInfo from 'react-native-device-info';
+import FastImage from 'react-native-fast-image';
 
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
 
 import FileAttachmentDocument from 'app/components/file_attachment_list/file_attachment_document';
 import FileAttachmentIcon from 'app/components/file_attachment_list/file_attachment_icon';
-import {DeviceTypes, NavigationTypes, PermissionTypes} from 'app/constants';
+import {DeviceTypes, NavigationTypes} from 'app/constants';
 import {getLocalFilePathFromFile, isDocument, isVideo} from 'app/utils/file';
 import {emptyFunction} from 'app/utils/general';
 import {calculateDimensions} from 'app/utils/images';
 import {t} from 'app/utils/i18n';
+import BottomSheet from 'app/utils/bottom_sheet';
+import {
+    dismissModal,
+    mergeNavigationOptions,
+} from 'app/actions/navigation';
 
 import Downloader from './downloader';
 import VideoPreview from './video_preview';
@@ -43,13 +50,13 @@ const ANIM_CONFIG = {duration: 300};
 
 export default class ImagePreview extends PureComponent {
     static propTypes = {
+        componentId: PropTypes.string.isRequired,
         canDownloadFiles: PropTypes.bool.isRequired,
         deviceHeight: PropTypes.number.isRequired,
         deviceWidth: PropTypes.number.isRequired,
         files: PropTypes.array,
         getItemMeasures: PropTypes.func.isRequired,
         index: PropTypes.number.isRequired,
-        navigator: PropTypes.object,
         origin: PropTypes.object,
         target: PropTypes.object,
         theme: PropTypes.object.isRequired,
@@ -66,9 +73,12 @@ export default class ImagePreview extends PureComponent {
     constructor(props) {
         super(props);
 
-        props.navigator.setStyle({
-            screenBackgroundColor: '#000',
-        });
+        const options = {
+            layout: {
+                backgroundColor: '#000',
+            },
+        };
+        mergeNavigationOptions(props.componentId, options);
 
         this.openAnim = new Animated.Value(0);
         this.headerFooterAnim = new Animated.Value(1);
@@ -80,6 +90,8 @@ export default class ImagePreview extends PureComponent {
             showDownloader: false,
             target: props.target,
         };
+
+        this.headerRef = React.createRef();
     }
 
     componentDidMount() {
@@ -88,6 +100,14 @@ export default class ImagePreview extends PureComponent {
 
     componentWillUnmount() {
         StatusBar.setHidden(false, 'fade');
+    }
+
+    setDocumentRef = (ref) => {
+        this.documents[this.state.index] = ref;
+    }
+
+    setDownloaderRef = (ref) => {
+        this.downloaderRef = ref;
     }
 
     animateOpenAnimToValue = (toValue, onComplete) => {
@@ -103,13 +123,16 @@ export default class ImagePreview extends PureComponent {
     };
 
     close = () => {
-        const {getItemMeasures, navigator} = this.props;
+        const {getItemMeasures, componentId} = this.props;
         const {index} = this.state;
 
         this.setState({animating: true});
-        navigator.setStyle({
-            screenBackgroundColor: 'transparent',
-        });
+        const options = {
+            layout: {
+                backgroundColor: 'transparent',
+            },
+        };
+        mergeNavigationOptions(componentId, options);
 
         getItemMeasures(index, (origin) => {
             if (origin) {
@@ -117,7 +140,7 @@ export default class ImagePreview extends PureComponent {
             }
 
             this.animateOpenAnimToValue(0, () => {
-                navigator.dismissModal({animationType: 'none'});
+                dismissModal();
             });
         });
     };
@@ -177,20 +200,17 @@ export default class ImagePreview extends PureComponent {
     };
 
     renderAttachmentDocument = (file) => {
-        const {canDownloadFiles, theme, navigator} = this.props;
+        const {canDownloadFiles, theme} = this.props;
 
         return (
             <View style={[style.flex, style.center]}>
                 <FileAttachmentDocument
-                    ref={(ref) => {
-                        this.documents[this.state.index] = ref;
-                    }}
+                    ref={this.setDocumentRef}
                     backgroundColor='transparent'
                     canDownloadFiles={canDownloadFiles}
                     file={file}
-                    iconHeight={100}
-                    iconWidth={100}
-                    navigator={navigator}
+                    iconHeight={200}
+                    iconWidth={200}
                     theme={theme}
                     wrapperHeight={200}
                     wrapperWidth={200}
@@ -206,8 +226,8 @@ export default class ImagePreview extends PureComponent {
                     backgroundColor='transparent'
                     file={file}
                     theme={this.props.theme}
-                    iconHeight={150}
-                    iconWidth={150}
+                    iconHeight={200}
+                    iconWidth={200}
                     wrapperHeight={200}
                     wrapperWidth={200}
                 />
@@ -218,6 +238,11 @@ export default class ImagePreview extends PureComponent {
     renderDownloadButton = () => {
         const {canDownloadFiles} = this.props;
         const file = this.getCurrentFile();
+
+        if (file?.data?.localPath) {
+            // we already have the file locally we don't need to download it
+            return null;
+        }
 
         if (file) {
             let icon;
@@ -245,6 +270,7 @@ export default class ImagePreview extends PureComponent {
 
             return (
                 <TouchableOpacity
+                    ref={this.headerRef}
                     onPress={action}
                     style={style.headerIcon}
                 >
@@ -262,7 +288,7 @@ export default class ImagePreview extends PureComponent {
 
         return (
             <Downloader
-                ref='downloader'
+                ref={this.setDownloaderRef}
                 show={this.state.showDownloader}
                 file={file}
                 deviceHeight={deviceHeight}
@@ -344,16 +370,16 @@ export default class ImagePreview extends PureComponent {
         if (imageDimensions) {
             const {deviceHeight, deviceWidth} = this.props;
             const {height, width} = imageDimensions;
-            const {style, ...otherProps} = imageProps;
-            const statusBar = DeviceTypes.IS_IPHONE_X ? 0 : 20;
+            const {style, source} = imageProps;
+            const statusBar = DeviceTypes.IS_IPHONE_WITH_INSETS ? 0 : 20;
             const flattenStyle = StyleSheet.flatten(style);
             const calculatedDimensions = calculateDimensions(height, width, deviceWidth, deviceHeight - statusBar);
             const imageStyle = {...flattenStyle, ...calculatedDimensions};
 
             return (
                 <View style={[style, {justifyContent: 'center', alignItems: 'center'}]}>
-                    <Image
-                        {...otherProps}
+                    <FastImage
+                        source={source}
                         style={imageStyle}
                     />
                 </View>
@@ -382,7 +408,7 @@ export default class ImagePreview extends PureComponent {
 
     renderVideoPreview = (file) => {
         const {deviceHeight, deviceWidth, theme} = this.props;
-        const statusBar = DeviceTypes.IS_IPHONE_X ? 0 : 20;
+        const statusBar = DeviceTypes.IS_IPHONE_WITH_INSETS ? 0 : 20;
 
         return (
             <VideoPreview
@@ -398,9 +424,9 @@ export default class ImagePreview extends PureComponent {
     saveVideoIOS = () => {
         const file = this.getCurrentFile();
 
-        if (this.refs.downloader) {
+        if (this.downloaderRef) {
             EventEmitter.emit(NavigationTypes.NAVIGATION_CLOSE_MODAL);
-            this.refs.downloader.saveVideo(getLocalFilePathFromFile(VIDEOS_PATH, file));
+            this.downloaderRef.saveVideo(getLocalFilePathFromFile(VIDEOS_PATH, file));
         }
     };
 
@@ -412,7 +438,9 @@ export default class ImagePreview extends PureComponent {
         }
 
         this.setState({showHeaderFooter: show});
-        StatusBar.setHidden(!show, 'slide');
+        if (Platform.OS === 'ios') {
+            StatusBar.setHidden(!show, 'slide');
+        }
 
         Animated.timing(this.headerFooterAnim, {
             ...ANIM_CONFIG,
@@ -443,38 +471,40 @@ export default class ImagePreview extends PureComponent {
     showDownloadOptionsIOS = async () => {
         const {formatMessage} = this.context.intl;
         const file = this.getCurrentFile();
-        const items = [];
+        const options = [];
+        const actions = [];
         let permissionRequest;
 
-        const hasPermissionToStorage = await Permissions.check('photo');
+        const photo = Permissions.PERMISSIONS.IOS.PHOTO_LIBRARY;
+        const hasPermissionToStorage = await Permissions.check(photo);
 
         switch (hasPermissionToStorage) {
-        case PermissionTypes.UNDETERMINED:
-            permissionRequest = await Permissions.request('photo');
-            if (permissionRequest !== PermissionTypes.AUTHORIZED) {
+        case Permissions.RESULTS.DENIED:
+            permissionRequest = await Permissions.request(photo);
+            if (permissionRequest !== Permissions.RESULTS.GRANTED) {
                 return;
             }
             break;
-        case PermissionTypes.DENIED: {
-            const canOpenSettings = await Permissions.canOpenSettings();
-            let grantOption = null;
-            if (canOpenSettings) {
-                grantOption = {
-                    text: formatMessage({id: 'mobile.android.permission_denied_retry', defaultMessage: 'Set permission'}),
-                    onPress: () => Permissions.openSettings(),
-                };
-            }
+        case Permissions.RESULTS.BLOCKED: {
+            const grantOption = {
+                text: formatMessage({id: 'mobile.permission_denied_retry', defaultMessage: 'Settings'}),
+                onPress: () => Permissions.openSettings(),
+            };
 
+            const applicationName = DeviceInfo.getApplicationName();
             Alert.alert(
-                formatMessage({id: 'mobile.android.photos_permission_denied_title', defaultMessage: 'Photo library access is required'}),
                 formatMessage({
-                    id: 'mobile.ios.photos_permission_denied_description',
+                    id: 'mobile.photo_library_permission_denied_title',
+                    defaultMessage: '{applicationName} would like to access your photo library',
+                }, {applicationName}),
+                formatMessage({
+                    id: 'mobile.photo_library_permission_denied_description',
                     defaultMessage: 'To save images and videos to your library, please change your permission settings.',
                 }),
                 [
                     grantOption,
-                    {text: formatMessage({id: 'mobile.android.permission_denied_dismiss', defaultMessage: 'Dismiss'})},
-                ]
+                    {text: formatMessage({id: 'mobile.permission_denied_dismiss', defaultMessage: 'Don\'t Allow'})},
+                ],
             );
             return;
         }
@@ -484,49 +514,36 @@ export default class ImagePreview extends PureComponent {
             const path = getLocalFilePathFromFile(VIDEOS_PATH, file);
             const exist = await RNFetchBlob.fs.exists(path);
             if (exist) {
-                items.push({
-                    action: this.saveVideoIOS,
-                    text: {
-                        id: t('mobile.image_preview.save_video'),
-                        defaultMessage: 'Save Video',
-                    },
-                });
+                options.push(formatMessage({
+                    id: t('mobile.image_preview.save_video'),
+                    defaultMessage: 'Save Video',
+                }));
+                actions.push(this.saveVideoIOS);
             } else {
                 this.showVideoDownloadRequiredAlertIOS();
             }
         } else {
-            items.push({
-                action: this.showDownloader,
-                text: {
-                    id: t('mobile.image_preview.save'),
-                    defaultMessage: 'Save Image',
-                },
-            });
+            options.push(formatMessage({
+                id: t('mobile.image_preview.save'),
+                defaultMessage: 'Save Image',
+            }));
+            actions.push(this.showDownloader);
         }
 
-        const options = {
-            title: file.caption,
-            items,
-            onCancelPress: () => this.setHeaderAndFooterVisible(true),
-        };
+        if (options.length) {
+            options.push(formatMessage({
+                id: 'mobile.post.cancel',
+                defaultMessage: 'Cancel',
+            }));
+            actions.push(emptyFunction);
 
-        if (items.length) {
-            this.setHeaderAndFooterVisible(false);
-
-            this.props.navigator.showModal({
-                screen: 'OptionsModal',
-                title: '',
-                animationType: 'none',
-                passProps: {
-                    ...options,
-                },
-                navigatorStyle: {
-                    navBarHidden: true,
-                    statusBarHidden: false,
-                    statusBarHideWithNavBar: false,
-                    screenBackgroundColor: 'transparent',
-                    modalPresentationStyle: 'overCurrentContext',
-                },
+            BottomSheet.showBottomSheetWithOptions({
+                options,
+                cancelButtonIndex: options.length - 1,
+                title: file.caption,
+                anchor: this.headerRef.current ? findNodeHandle(this.headerRef.current) : null,
+            }, (buttonIndex) => {
+                actions[buttonIndex]();
             });
         }
     };
@@ -548,7 +565,7 @@ export default class ImagePreview extends PureComponent {
                     id: 'mobile.server_upgrade.button',
                     defaultMessage: 'OK',
                 }),
-            }]
+            }],
         );
     };
 

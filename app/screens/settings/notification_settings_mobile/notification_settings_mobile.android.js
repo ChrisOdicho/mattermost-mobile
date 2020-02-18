@@ -370,11 +370,11 @@ class NotificationSettingsMobileAndroid extends NotificationSettingsMobileBase {
         );
     }
 
-    componentWillReceiveProps(nextProps) {
-        super.componentWillReceiveProps(nextProps);
+    componentDidUpdate(prevProps) {
+        super.componentDidUpdate(prevProps);
 
-        const {updateMeRequest, intl} = nextProps;
-        if (this.props.updateMeRequest !== updateMeRequest && updateMeRequest.status === RequestStatus.FAILURE) {
+        const {updateMeRequest, intl} = this.props;
+        if (updateMeRequest !== prevProps.updateMeRequest && updateMeRequest.status === RequestStatus.FAILURE) {
             Alert.alert(
                 intl.formatMessage({
                     id: 'mobile.notification_settings.save_failed_title',
@@ -383,7 +383,7 @@ class NotificationSettingsMobileAndroid extends NotificationSettingsMobileBase {
                 intl.formatMessage({
                     id: 'mobile.notification_settings.save_failed_description',
                     defaultMessage: 'The notification settings failed to save due to a connection issue, please try again.',
-                })
+                }),
             );
         }
     }

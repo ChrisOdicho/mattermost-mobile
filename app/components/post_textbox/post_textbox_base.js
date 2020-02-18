@@ -12,28 +12,46 @@ import {
     NativeModules,
     Platform,
     Text,
-    TextInput,
+    TouchableOpacity,
+    ScrollView,
     View,
+    Image,
 } from 'react-native';
 import {intlShape} from 'react-intl';
+import RNFetchBlob from 'rn-fetch-blob';
 import Button from 'react-native-button';
+import HWKeyboardEvent from 'react-native-hw-keyboard-event';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import slashForwardBoxIcon from 'assets/images/icons/slash-forward-box.png';
+
 import {General, RequestStatus} from 'mattermost-redux/constants';
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
 import {getFormattedFileSize} from 'mattermost-redux/utils/file_utils';
 
-import AttachmentButton from 'app/components/attachment_button';
-import Fade from 'app/components/fade';
+import FileUploadButton from './components/file_upload_button';
+import ImageUploadButton from './components/image_upload_button';
+import CameraButton from './components/camera_button';
 import FormattedMarkdownText from 'app/components/formatted_markdown_text';
 import FormattedText from 'app/components/formatted_text';
+import PasteableTextInput from 'app/components/pasteable_text_input';
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import SendButton from 'app/components/send_button';
+import {INSERT_TO_COMMENT, INSERT_TO_DRAFT, IS_REACTION_REGEX, MAX_FILE_COUNT, ICON_SIZE} from 'app/constants/post_textbox';
+import {NOTIFY_ALL_MEMBERS} from 'app/constants/view';
+import FileUploadPreview from 'app/components/file_upload_preview';
 
-import {INSERT_TO_COMMENT, INSERT_TO_DRAFT, IS_REACTION_REGEX, MAX_CONTENT_HEIGHT, MAX_FILE_COUNT} from 'app/constants/post_textbox';
+import EphemeralStore from 'app/store/ephemeral_store';
 import {t} from 'app/utils/i18n';
 import {confirmOutOfOfficeDisabled} from 'app/utils/status';
-import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
+import {
+    changeOpacity,
+    makeStyleSheetFromTheme,
+    getKeyboardAppearanceFromTheme,
+} from 'app/utils/theme';
 
-const PLACEHOLDER_COLOR = changeOpacity('#000', 0.5);
 const {RNTextInputReset} = NativeModules;
+const INPUT_LINE_HEIGHT = 20;
+const EXTRA_INPUT_PADDING = 3;
 
 export default class PostTextBoxBase extends PureComponent {
     static propTypes = {
@@ -51,6 +69,7 @@ export default class PostTextBoxBase extends PureComponent {
             handleCommentDraftSelectionChanged: PropTypes.func.isRequired,
             setStatus: PropTypes.func.isRequired,
             selectPenultimateChannel: PropTypes.func.isRequired,
+            getChannelTimezones: PropTypes.func.isRequired,
         }).isRequired,
         canUploadFiles: PropTypes.bool.isRequired,
         channelId: PropTypes.string.isRequired,
@@ -63,7 +82,6 @@ export default class PostTextBoxBase extends PureComponent {
         files: PropTypes.array,
         maxFileSize: PropTypes.number.isRequired,
         maxMessageLength: PropTypes.number.isRequired,
-        navigator: PropTypes.object,
         rootId: PropTypes.string,
         theme: PropTypes.object.isRequired,
         uploadFileRequestStatus: PropTypes.string.isRequired,
@@ -73,6 +91,12 @@ export default class PostTextBoxBase extends PureComponent {
         onCloseChannel: PropTypes.func,
         cursorPositionEvent: PropTypes.string,
         valueEvent: PropTypes.string,
+        currentChannelMembersCount: PropTypes.number,
+        enableConfirmNotificationsToChannel: PropTypes.bool,
+        isTimezoneEnabled: PropTypes.bool,
+        currentChannel: PropTypes.object,
+        isLandscape: PropTypes.bool.isRequired,
+        screenId: PropTypes.string.isRequired,
     };
 
     static defaultProps = {
@@ -95,25 +119,40 @@ export default class PostTextBoxBase extends PureComponent {
             keyboardType: 'default',
             top: 0,
             value: props.value,
+            rootId: props.rootId,
+            channelId: props.channelId,
+            channelTimezoneCount: 0,
+            longMessageAlertShown: false,
+            extraInputPadding: 0,
         };
     }
 
-    componentDidMount() {
+    componentDidMount(prevProps) {
         const event = this.props.rootId ? INSERT_TO_COMMENT : INSERT_TO_DRAFT;
 
         EventEmitter.on(event, this.handleInsertTextToDraft);
         AppState.addEventListener('change', this.handleAppStateChange);
+        HWKeyboardEvent.onHWKeyPressed(this.handleHardwareEnterPress);
 
         if (Platform.OS === 'android') {
             Keyboard.addListener('keyboardDidHide', this.handleAndroidKeyboard);
             BackHandler.addEventListener('hardwareBackPress', this.handleAndroidBack);
         }
+
+        if (this.props.isTimezoneEnabled !== prevProps?.isTimezoneEnabled || prevProps?.channelId !== this.props.channelId) {
+            this.numberOfTimezones().then((channelTimezoneCount) => this.setState({channelTimezoneCount}));
+        }
     }
 
-    componentWillReceiveProps(nextProps) {
-        if (nextProps.channelId !== this.props.channelId || nextProps.rootId !== this.props.rootId) {
-            this.setState({value: nextProps.value});
+    static getDerivedStateFromProps(nextProps, state) {
+        if (nextProps.channelId !== state.channelId || nextProps.rootId !== state.rootId) {
+            return {
+                value: nextProps.value,
+                channelId: nextProps.channelId,
+                rootId: nextProps.rootId,
+            };
         }
+        return null;
     }
 
     componentWillUnmount() {
@@ -121,6 +160,7 @@ export default class PostTextBoxBase extends PureComponent {
 
         EventEmitter.off(event, this.handleInsertTextToDraft);
         AppState.removeEventListener('change', this.handleAppStateChange);
+        HWKeyboardEvent.removeOnHWKeyPressed();
 
         if (Platform.OS === 'android') {
             Keyboard.removeListener('keyboardDidHide', this.handleAndroidKeyboard);
@@ -132,6 +172,17 @@ export default class PostTextBoxBase extends PureComponent {
         if (this.input.current) {
             this.input.current.blur();
         }
+    };
+
+    focus = () => {
+        if (this.input.current) {
+            this.input.current.focus();
+        }
+    }
+
+    numberOfTimezones = async () => {
+        const {data} = await this.props.actions.getChannelTimezones(this.props.channelId);
+        return data?.length || 0;
     };
 
     canSend = () => {
@@ -172,53 +223,136 @@ export default class PostTextBoxBase extends PureComponent {
         const valueLength = value.trim().length;
 
         if (valueLength > maxMessageLength) {
-            Alert.alert(
-                intl.formatMessage({
-                    id: 'mobile.message_length.title',
-                    defaultMessage: 'Message Length',
-                }),
-                intl.formatMessage({
-                    id: 'mobile.message_length.message',
-                    defaultMessage: 'Your current message is too long. Current character count: {max}/{count}',
-                }, {
-                    max: maxMessageLength,
-                    count: valueLength,
-                })
-            );
+            // Check if component is already aware message is too long
+            if (!this.state.longMessageAlertShown) {
+                Alert.alert(
+                    intl.formatMessage({
+                        id: 'mobile.message_length.title',
+                        defaultMessage: 'Message Length',
+                    }),
+                    intl.formatMessage({
+                        id: 'mobile.message_length.message',
+                        defaultMessage: 'Your current message is too long. Current character count: {count}/{max}',
+                    }, {
+                        max: maxMessageLength,
+                        count: valueLength,
+                    }),
+                );
+                this.setState({longMessageAlertShown: true});
+            }
+        } else if (this.state.longMessageAlertShown) {
+            this.setState({longMessageAlertShown: false});
         }
     };
 
-    getAttachmentButton = () => {
-        const {canUploadFiles, channelIsReadOnly, files, maxFileSize, navigator, theme} = this.props;
-        let attachmentButton = null;
+    startAtMention = () => {
+        this.handleTextChange(`${this.state.value}@`, true);
+        this.focus();
+    };
+
+    startSlashCommand = () => {
+        this.handleTextChange('/', true);
+        this.focus();
+    };
+
+    getTextInputButton = (actionType) => {
+        const {channelIsReadOnly, theme} = this.props;
+        const style = getStyleSheet(theme);
+
+        let button = null;
+        const buttonStyle = [];
+        let iconColor = changeOpacity(theme.centerChannelColor, 0.64);
+        let isDisabled = false;
+
+        if (!channelIsReadOnly) {
+            switch (actionType) {
+            case 'at':
+                isDisabled = this.state.value[this.state.value.length - 1] === '@';
+                if (isDisabled) {
+                    iconColor = changeOpacity(theme.centerChannelColor, 0.16);
+                }
+                button = (
+                    <TouchableOpacity
+                        disabled={isDisabled}
+                        onPress={this.startAtMention}
+                        style={style.iconWrapper}
+                    >
+                        <MaterialCommunityIcons
+                            color={iconColor}
+                            name='at'
+                            size={ICON_SIZE}
+                        />
+                    </TouchableOpacity>
+                );
+                break;
+            case 'slash':
+                isDisabled = this.state.value.length > 0;
+                buttonStyle.push(style.slashIcon);
+                if (isDisabled) {
+                    buttonStyle.push(style.iconDisabled);
+                }
+
+                button = (
+                    <TouchableOpacity
+                        disabled={isDisabled}
+                        onPress={this.startSlashCommand}
+                        style={style.iconWrapper}
+                    >
+                        <Image
+                            source={slashForwardBoxIcon}
+                            style={buttonStyle}
+                        />
+                    </TouchableOpacity>
+                );
+                break;
+            }
+        }
+
+        return button;
+    }
+
+    getMediaButton = (actionType) => {
+        const {canUploadFiles, channelIsReadOnly, files, maxFileSize, theme} = this.props;
+        const style = getStyleSheet(theme);
+        let button = null;
+        const props = {
+            blurTextBox: this.blur,
+            fileCount: files.length,
+            maxFileCount: MAX_FILE_COUNT,
+            onShowFileMaxWarning: this.onShowFileMaxWarning,
+            onShowFileSizeWarning: this.onShowFileSizeWarning,
+            uploadFiles: this.handleUploadFiles,
+            maxFileSize,
+            theme,
+            buttonContainerStyle: style.iconWrapper,
+        };
 
         if (canUploadFiles && !channelIsReadOnly) {
-            attachmentButton = (
-                <AttachmentButton
-                    blurTextBox={this.blur}
-                    theme={theme}
-                    navigator={navigator}
-                    fileCount={files.length}
-                    maxFileSize={maxFileSize}
-                    maxFileCount={MAX_FILE_COUNT}
-                    onShowFileMaxWarning={this.onShowFileMaxWarning}
-                    onShowFileSizeWarning={this.onShowFileSizeWarning}
-                    uploadFiles={this.handleUploadFiles}
-                />
-            );
+            switch (actionType) {
+            case 'file':
+                button = (
+                    <FileUploadButton {...props}/>
+                );
+                break;
+            case 'image':
+                button = (
+                    <ImageUploadButton {...props}/>
+                );
+                break;
+            case 'camera':
+                button = (
+                    <CameraButton {...props}/>
+                );
+            }
         }
 
-        return attachmentButton;
-    };
+        return button;
+    }
 
     getInputContainerStyle = () => {
-        const {canUploadFiles, channelIsReadOnly, theme} = this.props;
+        const {channelIsReadOnly, theme} = this.props;
         const style = getStyleSheet(theme);
         const inputContainerStyle = [style.inputContainer];
-
-        if (!canUploadFiles) {
-            inputContainerStyle.push(style.inputContainerWithoutFileUpload);
-        }
 
         if (channelIsReadOnly) {
             inputContainerStyle.push(style.readonlyContainer);
@@ -245,6 +379,14 @@ export default class PostTextBoxBase extends PureComponent {
     handleAndroidKeyboard = () => {
         this.blur();
     };
+
+    handleHardwareEnterPress = (keyEvent) => {
+        switch (keyEvent.pressedKey) {
+        case 'enter': this.handleSendMessage();
+            break;
+        case 'shift-enter': this.handleInsertTextToDraft('\n');
+        }
+    }
 
     handleAndroidBack = () => {
         const {channelId, files, rootId} = this.props;
@@ -281,9 +423,11 @@ export default class PostTextBoxBase extends PureComponent {
     };
 
     handleSendMessage = () => {
-        if (!this.canSend()) {
+        if (!this.isSendButtonEnabled()) {
             return;
         }
+
+        this.setState({sendingMessage: true});
 
         const {actions, channelId, files, rootId} = this.props;
         const {value} = this.state;
@@ -310,6 +454,9 @@ export default class PostTextBoxBase extends PureComponent {
                 }),
                 [{
                     text: intl.formatMessage({id: 'mobile.channel_info.alertNo', defaultMessage: 'No'}),
+                    onPress: () => {
+                        this.setState({sendingMessage: false});
+                    },
                 }, {
                     text: intl.formatMessage({id: 'mobile.channel_info.alertYes', defaultMessage: 'Yes'}),
                     onPress: () => {
@@ -377,95 +524,172 @@ export default class PostTextBoxBase extends PureComponent {
         }
     };
 
-    handleUploadFiles = (images) => {
-        this.props.actions.initUploadFiles(images, this.props.rootId);
+    handleUploadFiles = async (files) => {
+        const file = files[0];
+        if (!file.fileSize | !file.fileName) {
+            const path = (file.path || file.uri).replace('file://', '');
+            const fileInfo = await RNFetchBlob.fs.stat(path);
+            file.fileSize = fileInfo.size;
+            file.fileName = fileInfo.filename;
+        }
+
+        if (file.fileSize > this.props.maxFileSize) {
+            this.onShowFileSizeWarning(file.fileName);
+        } else {
+            this.props.actions.initUploadFiles(files, this.props.rootId);
+        }
     };
 
-    isFileLoading() {
+    isFileLoading = () => {
         const {files} = this.props;
 
         return files.some((file) => file.loading);
-    }
+    };
 
-    isSendButtonVisible() {
+    isSendButtonVisible = () => {
         return this.canSend() || this.isFileLoading();
-    }
+    };
+
+    isSendButtonEnabled = () => {
+        return this.canSend() && !this.isFileLoading() && !this.state.sendingMessage;
+    };
 
     sendMessage = () => {
-        const {actions, currentUserId, channelId, files, rootId} = this.props;
-        const {intl} = this.context;
         const {value} = this.state;
 
-        if (files.length === 0 && !value) {
-            Alert.alert(
-                intl.formatMessage({
-                    id: 'mobile.post_textbox.empty.title',
-                    defaultMessage: 'Empty Message',
-                }),
-                intl.formatMessage({
-                    id: 'mobile.post_textbox.empty.message',
-                    defaultMessage: 'You are trying to send an empty message.\nPlease make sure you have a message or at least one attached file.',
-                }),
-                [{
-                    text: intl.formatMessage({id: 'mobile.post_textbox.empty.ok', defaultMessage: 'OK'}),
-                }],
+        const currentMembersCount = this.props.currentChannelMembersCount;
+        const notificationsToChannel = this.props.enableConfirmNotificationsToChannel;
+        const toAllOrChannel = this.textContainsAtAllAtChannel(value);
+
+        if (value.indexOf('/') === 0) {
+            this.sendCommand(value);
+        } else if (notificationsToChannel && currentMembersCount > NOTIFY_ALL_MEMBERS && toAllOrChannel) {
+            this.showSendToAllOrChannelAlert(currentMembersCount);
+        } else {
+            this.doSubmitMessage();
+        }
+    };
+
+    textContainsAtAllAtChannel = (text) => {
+        const textWithoutCode = text.replace(/(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)| *(`{3,}|~{3,})[ .]*(\S+)? *\n([\s\S]*?\s*)\3 *(?:\n+|$)/g, '');
+        return (/\B@(all|channel)\b/i).test(textWithoutCode);
+    };
+
+    showSendToAllOrChannelAlert = (currentMembersCount) => {
+        const {intl} = this.context;
+        const {channelTimezoneCount} = this.state;
+        const {isTimezoneEnabled} = this.props;
+
+        let notifyAllMessage = '';
+        if (isTimezoneEnabled && channelTimezoneCount) {
+            notifyAllMessage = (
+                intl.formatMessage(
+                    {
+                        id: 'mobile.post_textbox.entire_channel.message.with_timezones',
+                        defaultMessage: 'By using @all or @channel you are about to send notifications to {totalMembers, number} {totalMembers, plural, one {person} other {people}} in {timezones, number} {timezones, plural, one {timezone} other {timezones}}. Are you sure you want to do this?',
+                    },
+                    {
+                        totalMembers: currentMembersCount - 1,
+                        timezones: channelTimezoneCount,
+                    },
+                )
             );
         } else {
-            if (value.indexOf('/') === 0) {
-                this.sendCommand(value);
-            } else {
-                const postFiles = files.filter((f) => !f.failed);
-                const post = {
-                    user_id: currentUserId,
-                    channel_id: channelId,
-                    root_id: rootId,
-                    parent_id: rootId,
-                    message: value,
-                };
-
-                actions.createPost(post, postFiles);
-
-                if (postFiles.length) {
-                    actions.handleClearFiles(channelId, rootId);
-                }
-            }
-
-            if (Platform.OS === 'ios') {
-                // On iOS, if the PostTextbox height increases from its
-                // initial height (due to a multiline post or a post whose
-                // message wraps, for example), then when the text is cleared
-                // the PostTextbox height decrease will be animated. This
-                // animation in conjunction with the PostList animation as it
-                // receives the newly created post is causing issues in the iOS
-                // PostList component as it fails to properly react to its content
-                // size changes. While a proper fix is determined for the PostList
-                // component, a small delay in triggering the height decrease
-                // animation gives the PostList enough time to first handle content
-                // size changes from the new post.
-                setTimeout(() => {
-                    this.handleTextChange('');
-                }, 250);
-            } else {
-                this.handleTextChange('');
-            }
-
-            this.changeDraft('');
-
-            let callback;
-            if (Platform.OS === 'android') {
-                // Fixes the issue where Android predictive text would prepend suggestions to the post draft when messages
-                // are typed successively without blurring the input
-                const nextState = {
-                    keyboardType: 'email-address',
-                };
-
-                callback = () => this.setState({keyboardType: 'default'});
-
-                this.setState(nextState, callback);
-            }
-
-            EventEmitter.emit('scroll-to-bottom');
+            notifyAllMessage = (
+                intl.formatMessage(
+                    {
+                        id: 'mobile.post_textbox.entire_channel.message',
+                        defaultMessage: 'By using @all or @channel you are about to send notifications to {totalMembers, number} {totalMembers, plural, one {person} other {people}}. Are you sure you want to do this?',
+                    },
+                    {
+                        totalMembers: currentMembersCount - 1,
+                    },
+                )
+            );
         }
+
+        Alert.alert(
+            intl.formatMessage({
+                id: 'mobile.post_textbox.entire_channel.title',
+                defaultMessage: 'Confirm sending notifications to entire channel',
+            }),
+            notifyAllMessage,
+            [
+                {
+                    text: intl.formatMessage({
+                        id: 'mobile.post_textbox.entire_channel.cancel',
+                        defaultMessage: 'Cancel',
+                    }),
+                    onPress: () => {
+                        this.setState({sendingMessage: false});
+                    },
+                },
+                {
+                    text: intl.formatMessage({
+                        id: 'mobile.post_textbox.entire_channel.confirm',
+                        defaultMessage: 'Confirm',
+                    }),
+                    onPress: () => this.doSubmitMessage(),
+                },
+            ],
+        );
+    };
+
+    doSubmitMessage = () => {
+        const {actions, currentUserId, channelId, files, rootId} = this.props;
+        const {value} = this.state;
+        const postFiles = files.filter((f) => !f.failed);
+        const post = {
+            user_id: currentUserId,
+            channel_id: channelId,
+            root_id: rootId,
+            parent_id: rootId,
+            message: value,
+        };
+
+        actions.createPost(post, postFiles);
+
+        if (postFiles.length) {
+            actions.handleClearFiles(channelId, rootId);
+        }
+
+        if (Platform.OS === 'ios') {
+            // On iOS, if the PostTextbox height increases from its
+            // initial height (due to a multiline post or a post whose
+            // message wraps, for example), then when the text is cleared
+            // the PostTextbox height decrease will be animated. This
+            // animation in conjunction with the PostList animation as it
+            // receives the newly created post is causing issues in the iOS
+            // PostList component as it fails to properly react to its content
+            // size changes. While a proper fix is determined for the PostList
+            // component, a small delay in triggering the height decrease
+            // animation gives the PostList enough time to first handle content
+            // size changes from the new post.
+            setTimeout(() => {
+                this.handleTextChange('');
+                this.setState({sendingMessage: false});
+            }, 250);
+        } else {
+            this.handleTextChange('');
+            this.setState({sendingMessage: false});
+        }
+
+        this.changeDraft('');
+
+        let callback;
+        if (Platform.OS === 'android') {
+            // Fixes the issue where Android predictive text would prepend suggestions to the post draft when messages
+            // are typed successively without blurring the input
+            const nextState = {
+                keyboardType: 'email-address',
+            };
+
+            callback = () => this.setState({keyboardType: 'default'});
+
+            this.setState(nextState, callback);
+        }
+
+        EventEmitter.emit('scroll-to-bottom');
     };
 
     getStatusFromSlashCommand = (message) => {
@@ -497,29 +721,36 @@ export default class PostTextBoxBase extends PureComponent {
         const status = this.getStatusFromSlashCommand(msg);
         if (userIsOutOfOffice && this.isStatusSlashCommand(status)) {
             confirmOutOfOfficeDisabled(intl, status, this.updateStatus);
+            this.setState({sendingMessage: false});
             return;
         }
 
         const {error} = await actions.executeCommand(msg, channelId, rootId);
+        this.setState({sendingMessage: false});
 
         if (error) {
-            this.handleTextChange(msg);
-            this.changeDraft(msg);
             Alert.alert(
                 intl.formatMessage({
                     id: 'mobile.commands.error_title',
                     defaultMessage: 'Error Executing Command',
                 }),
-                error.message
+                error.message,
             );
+            return;
         }
+
+        this.handleTextChange('');
+        this.changeDraft('');
     };
 
     sendReaction = (emoji) => {
         const {actions, rootId} = this.props;
         actions.addReactionToLatestPost(emoji, rootId);
+
         this.handleTextChange('');
         this.changeDraft('');
+
+        this.setState({sendingMessage: false});
     };
 
     onShowFileMaxWarning = () => {
@@ -530,7 +761,7 @@ export default class PostTextBoxBase extends PureComponent {
         const {formatMessage} = this.context.intl;
         const fileSizeWarning = formatMessage({
             id: 'file_upload.fileAbove',
-            defaultMessage: 'File above {max}MB cannot be uploaded: {filename}',
+            defaultMessage: 'File above {max} cannot be uploaded: {filename}',
         }, {
             max: getFormattedFileSize({size: this.props.maxFileSize}),
             filename,
@@ -539,7 +770,7 @@ export default class PostTextBoxBase extends PureComponent {
         EventEmitter.emit('fileSizeWarning', fileSizeWarning);
         setTimeout(() => {
             EventEmitter.emit('fileSizeWarning', null);
-        }, 3000);
+        }, 5000);
     };
 
     onCloseChannelPress = () => {
@@ -579,6 +810,62 @@ export default class PostTextBoxBase extends PureComponent {
         });
     };
 
+    showPasteFilesErrorDialog = () => {
+        const {formatMessage} = this.context.intl;
+        Alert.alert(
+            formatMessage({
+                id: 'mobile.files_paste.error_title',
+                defaultMessage: 'Paste failed',
+            }),
+            formatMessage({
+                id: 'mobile.files_paste.error_description',
+                defaultMessage: 'An error occurred while pasting the file(s). Please try again.',
+            }),
+            [
+                {
+                    text: formatMessage({
+                        id: 'mobile.files_paste.error_dismiss',
+                        defaultMessage: 'Dismiss',
+                    }),
+                },
+            ],
+        );
+    };
+
+    handlePasteFiles = (error, files) => {
+        if (this.props.screenId === EphemeralStore.getNavigationTopComponentId()) {
+            if (error) {
+                this.showPasteFilesErrorDialog();
+                return;
+            }
+
+            const {maxFileSize} = this.props;
+            const availableCount = MAX_FILE_COUNT - this.props.files.length;
+            if (files.length > availableCount) {
+                this.onShowFileMaxWarning();
+                return;
+            }
+
+            const largeFile = files.find((image) => image.fileSize > maxFileSize);
+            if (largeFile) {
+                this.onShowFileSizeWarning(largeFile.fileName);
+                return;
+            }
+
+            this.handleUploadFiles(files);
+        }
+    };
+
+    handleInputSizeChange = ({nativeEvent: {contentSize}}) => {
+        const {extraInputPadding} = this.state;
+        const numLines = contentSize.height / INPUT_LINE_HEIGHT;
+        if (numLines >= 2 && extraInputPadding !== EXTRA_INPUT_PADDING) {
+            this.setState({extraInputPadding: EXTRA_INPUT_PADDING});
+        } else if (numLines < 2 && extraInputPadding !== 0) {
+            this.setState({extraInputPadding: 0});
+        }
+    }
+
     renderDeactivatedChannel = () => {
         const {intl} = this.context;
         const style = getStyleSheet(this.props.theme);
@@ -591,52 +878,98 @@ export default class PostTextBoxBase extends PureComponent {
                 })}
             </Text>
         );
-    }
+    };
 
     renderTextBox = () => {
         const {intl} = this.context;
-        const {channelDisplayName, channelIsArchived, channelIsLoading, channelIsReadOnly, theme} = this.props;
+        const {channelDisplayName, channelIsArchived, channelIsLoading, channelIsReadOnly, theme, isLandscape, files, rootId} = this.props;
         const style = getStyleSheet(theme);
 
         if (channelIsArchived) {
             return this.archivedView(theme, style);
         }
 
-        const {value} = this.state;
+        const {value, extraInputPadding} = this.state;
         const textValue = channelIsLoading ? '' : value;
         const placeholder = this.getPlaceHolder();
 
+        let maxHeight = 150;
+
+        if (isLandscape) {
+            maxHeight = 88;
+        }
+
+        const inputStyle = {};
+        if (extraInputPadding) {
+            inputStyle.paddingBottom = style.input.paddingBottom + extraInputPadding;
+            inputStyle.paddingTop = style.input.paddingTop + extraInputPadding;
+        }
+
         return (
             <View
-                style={style.inputWrapper}
+                style={[style.inputWrapper, padding(isLandscape)]}
                 onLayout={this.handleLayout}
             >
-                {this.getAttachmentButton()}
-                <View style={this.getInputContainerStyle()}>
-                    <TextInput
+                <ScrollView
+                    style={this.getInputContainerStyle()}
+                    contentContainerStyle={style.inputContentContainer}
+                    keyboardShouldPersistTaps={'always'}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    pinchGestureEnabled={false}
+                    overScrollMode={'never'}
+                    disableScrollViewPanResponder={true}
+                >
+                    <PasteableTextInput
                         ref={this.input}
                         value={textValue}
+                        style={{...style.input, ...inputStyle, maxHeight}}
                         onChangeText={this.handleTextChange}
                         onSelectionChange={this.handlePostDraftSelectionChanged}
                         placeholder={intl.formatMessage(placeholder, {channelDisplayName})}
-                        placeholderTextColor={PLACEHOLDER_COLOR}
+                        placeholderTextColor={changeOpacity(theme.centerChannelColor, 0.5)}
                         multiline={true}
                         blurOnSubmit={false}
                         underlineColorAndroid='transparent'
-                        style={style.input}
                         keyboardType={this.state.keyboardType}
                         onEndEditing={this.handleEndEditing}
                         disableFullscreenUI={true}
                         editable={!channelIsReadOnly}
+                        onPaste={this.handlePasteFiles}
+                        keyboardAppearance={getKeyboardAppearanceFromTheme(theme)}
+                        onContentSizeChange={Platform.OS === 'android' ? this.handleInputSizeChange : null}
                     />
-                    <Fade visible={this.isSendButtonVisible()}>
-                        <SendButton
-                            disabled={this.isFileLoading()}
-                            handleSendMessage={this.handleSendMessage}
-                            theme={theme}
+                    {!channelIsReadOnly &&
+                    <React.Fragment>
+                        <FileUploadPreview
+                            files={files}
+                            rootId={rootId}
                         />
-                    </Fade>
-                </View>
+
+                        <View style={style.buttonsContainer}>
+                            <View style={style.quickActionsContainer}>
+
+                                {this.getTextInputButton('at')}
+
+                                {this.getTextInputButton('slash')}
+
+                                {this.getMediaButton('file')}
+
+                                {this.getMediaButton('image')}
+
+                                {this.getMediaButton('camera')}
+
+                            </View>
+                            <SendButton
+                                disabled={!this.isSendButtonEnabled()}
+                                handleSendMessage={this.handleSendMessage}
+                                theme={theme}
+                            />
+                        </View>
+                    </React.Fragment>
+                    }
+                </ScrollView>
             </View>
         );
     };
@@ -644,38 +977,66 @@ export default class PostTextBoxBase extends PureComponent {
 
 const getStyleSheet = makeStyleSheetFromTheme((theme) => {
     return {
-        input: {
-            color: '#000',
-            flex: 1,
-            fontSize: 14,
-            maxHeight: MAX_CONTENT_HEIGHT,
-            paddingBottom: 8,
-            paddingLeft: 12,
-            paddingRight: 12,
-            paddingTop: 8,
+        buttonsContainer: {
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingBottom: Platform.select({
+                ios: 1,
+                android: 2,
+            }),
         },
-        hidden: {
-            position: 'absolute',
-            top: 10000, // way off screen
-            left: 10000, // way off screen
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            color: 'transparent',
+        slashIcon: {
+            width: ICON_SIZE,
+            height: ICON_SIZE,
+            opacity: 1,
+            tintColor: changeOpacity(theme.centerChannelColor, 0.64),
+        },
+        iconDisabled: {
+            tintColor: changeOpacity(theme.centerChannelColor, 0.16),
+        },
+        iconWrapper: {
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 10,
+        },
+        quickActionsContainer: {
+            display: 'flex',
+            flexDirection: 'row',
+            height: 44,
+        },
+        input: {
+            color: theme.centerChannelColor,
+            fontSize: 15,
+            lineHeight: INPUT_LINE_HEIGHT,
+            paddingHorizontal: 12,
+            paddingTop: Platform.select({
+                ios: 6,
+                android: 8,
+            }),
+            paddingBottom: Platform.select({
+                ios: 6,
+                android: 2,
+            }),
+            minHeight: 30,
         },
         inputContainer: {
             flex: 1,
-            flexDirection: 'row',
-            backgroundColor: '#fff',
-            alignItems: 'stretch',
-            marginRight: 10,
+            flexDirection: 'column',
         },
-        inputContainerWithoutFileUpload: {
-            marginLeft: 10,
+        inputContentContainer: {
+            alignItems: 'stretch',
+            paddingTop: Platform.select({
+                ios: 7,
+                android: 0,
+            }),
         },
         inputWrapper: {
             alignItems: 'flex-end',
             flexDirection: 'row',
-            paddingVertical: 4,
+            justifyContent: 'center',
+            paddingBottom: 2,
             backgroundColor: theme.centerChannelBg,
             borderTopWidth: 1,
             borderTopColor: changeOpacity(theme.centerChannelColor, 0.20),
@@ -699,6 +1060,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
             paddingTop: 10,
             paddingBottom: 10,
             borderTopWidth: 1,
+            backgroundColor: theme.centerChannelBg,
             borderTopColor: changeOpacity(theme.centerChannelColor, 0.20),
         },
         archivedText: {

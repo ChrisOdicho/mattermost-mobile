@@ -2,13 +2,12 @@
 // See LICENSE.txt for license information.
 
 import React from 'react';
-import {TouchableOpacity} from 'react-native';
 import {shallow} from 'enzyme';
+import LinearGradient from 'react-native-linear-gradient';
 
 import Preferences from 'mattermost-redux/constants/preferences';
 
-import LinearGradient from 'react-native-linear-gradient';
-
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 import ShowMoreButton from './show_more_button';
 
 describe('ShowMoreButton', () => {
@@ -21,7 +20,7 @@ describe('ShowMoreButton', () => {
 
     test('should match, full snapshot', () => {
         const wrapper = shallow(
-            <ShowMoreButton {...baseProps}/>
+            <ShowMoreButton {...baseProps}/>,
         );
 
         expect(wrapper.getElement()).toMatchSnapshot();
@@ -29,7 +28,7 @@ describe('ShowMoreButton', () => {
 
     test('should match, button snapshot', () => {
         const wrapper = shallow(
-            <ShowMoreButton {...baseProps}/>
+            <ShowMoreButton {...baseProps}/>,
         );
 
         expect(wrapper.instance().renderButton(true, {button: {}, sign: {}, text: {}})).toMatchSnapshot();
@@ -38,7 +37,7 @@ describe('ShowMoreButton', () => {
 
     test('should LinearGradient exists', () => {
         const wrapper = shallow(
-            <ShowMoreButton {...baseProps}/>
+            <ShowMoreButton {...baseProps}/>,
         );
 
         expect(wrapper.find(LinearGradient).exists()).toBe(true);
@@ -52,10 +51,10 @@ describe('ShowMoreButton', () => {
             <ShowMoreButton
                 {...baseProps}
                 onPress={onPress}
-            />
+            />,
         );
 
-        wrapper.find(TouchableOpacity).props().onPress();
+        wrapper.find(TouchableWithFeedback).props().onPress();
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 });

@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import {intlShape} from 'react-intl';
 import {
     BackHandler,
+    Dimensions,
     InteractionManager,
     Keyboard,
     ScrollView,
@@ -17,20 +18,18 @@ import {General} from 'mattermost-redux/constants';
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
 
 import SafeAreaView from 'app/components/safe_area_view';
-import DrawerLayout from 'app/components/sidebars/drawer_layout';
+import DrawerLayout, {DRAWER_INITIAL_OFFSET, TABLET_WIDTH} from 'app/components/sidebars/drawer_layout';
 import UserStatus from 'app/components/user_status';
 import {DeviceTypes, NavigationTypes} from 'app/constants';
 import {confirmOutOfOfficeDisabled} from 'app/utils/status';
 import {preventDoubleTap} from 'app/utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 import {t} from 'app/utils/i18n';
+import {showModal, showModalOverCurrentContext, dismissModal} from 'app/actions/navigation';
 
 import DrawerItem from './drawer_item';
 import UserInfo from './user_info';
 import StatusLabel from './status_label';
-
-const DRAWER_INITIAL_OFFSET = 80;
-const DRAWER_TABLET_WIDTH = 300;
 
 export default class SettingsDrawer extends PureComponent {
     static propTypes = {
@@ -41,9 +40,6 @@ export default class SettingsDrawer extends PureComponent {
         blurPostTextBox: PropTypes.func.isRequired,
         children: PropTypes.node,
         currentUser: PropTypes.object.isRequired,
-        deviceWidth: PropTypes.number.isRequired,
-        isLandscape: PropTypes.bool.isRequired,
-        navigator: PropTypes.object,
         status: PropTypes.string,
         theme: PropTypes.object.isRequired,
     };
@@ -63,37 +59,61 @@ export default class SettingsDrawer extends PureComponent {
         MaterialIcon.getImageSource('close', 20, props.theme.sidebarHeaderTextColor).then((source) => {
             this.closeButton = source;
         });
+
+        this.state = {
+            deviceWidth: Dimensions.get('window').width,
+            openDrawerOffset: DRAWER_INITIAL_OFFSET,
+        };
     }
 
     componentDidMount() {
+        this.mounted = true;
+        this.handleDimensions({window: Dimensions.get('window')});
+        EventEmitter.on('close_settings_sidebar', this.closeSettingsSidebar);
         BackHandler.addEventListener('hardwareBackPress', this.handleAndroidBack);
+        Dimensions.addEventListener('change', this.handleDimensions);
     }
 
     componentWillUnmount() {
+        this.mounted = false;
+        EventEmitter.off('close_settings_sidebar', this.closeSettingsSidebar);
         BackHandler.removeEventListener('hardwareBackPress', this.handleAndroidBack);
+        Dimensions.removeEventListener('change', this.handleDimensions);
     }
 
-    handleAndroidBack = () => {
-        if (this.refs.drawer && this.drawerOpened) {
-            this.refs.drawer.closeDrawer();
-            return true;
-        }
+    setDrawerRef = (ref) => {
+        this.drawerRef = ref;
+    }
 
-        return false;
+    confirmReset = (status) => {
+        const {intl} = this.context;
+        confirmOutOfOfficeDisabled(intl, status, this.updateStatus);
+    };
+
+    closeSettingsSidebar = () => {
+        if (this.drawerRef && this.drawerOpened) {
+            this.drawerRef.closeDrawer();
+        }
     };
 
     openSettingsSidebar = () => {
         this.props.blurPostTextBox();
 
-        if (this.refs.drawer && !this.drawerOpened) {
-            this.refs.drawer.openDrawer();
+        if (this.drawerRef && !this.drawerOpened) {
+            this.drawerRef.openDrawer();
         }
     };
 
-    closeSettingsSidebar = () => {
-        if (this.refs.drawer && this.drawerOpened) {
-            this.refs.drawer.closeDrawer();
+    handleAndroidBack = () => {
+        if (this.statusModal) {
+            this.statusModal = false;
+            return false;
+        } else if (this.drawerRef && this.drawerOpened) {
+            this.drawerRef.closeDrawer();
+            return true;
         }
+
+        return false;
     };
 
     handleDrawerClose = () => {
@@ -104,6 +124,19 @@ export default class SettingsDrawer extends PureComponent {
     handleDrawerOpen = () => {
         this.drawerOpened = true;
         Keyboard.dismiss();
+    };
+
+    handleDimensions = ({window}) => {
+        if (this.mounted) {
+            if (this.state.openDrawerOffset !== 0) {
+                let openDrawerOffset = DRAWER_INITIAL_OFFSET;
+                if ((window.width > window.height) || DeviceTypes.IS_TABLET) {
+                    openDrawerOffset = window.width * 0.5;
+                }
+
+                this.setState({openDrawerOffset, deviceWidth: window.width});
+            }
+        }
     };
 
     handleSetStatus = preventDoubleTap(() => {
@@ -133,21 +166,8 @@ export default class SettingsDrawer extends PureComponent {
             },
         }];
 
-        this.props.navigator.showModal({
-            screen: 'OptionsModal',
-            title: '',
-            animationType: 'none',
-            passProps: {
-                items,
-            },
-            navigatorStyle: {
-                navBarHidden: true,
-                statusBarHidden: false,
-                statusBarHideWithNavBar: false,
-                screenBackgroundColor: 'transparent',
-                modalPresentationStyle: 'overCurrentContext',
-            },
-        });
+        this.statusModal = true;
+        showModalOverCurrentContext('OptionsModal', {items});
     });
 
     goToEditProfile = preventDoubleTap(() => {
@@ -158,7 +178,7 @@ export default class SettingsDrawer extends PureComponent {
         this.openModal(
             'EditProfile',
             formatMessage({id: 'mobile.routes.edit_profile', defaultMessage: 'Edit Profile'}),
-            {currentUser, commandType}
+            {currentUser, commandType},
         );
     });
 
@@ -187,7 +207,7 @@ export default class SettingsDrawer extends PureComponent {
         this.openModal(
             'UserProfile',
             formatMessage({id: 'mobile.routes.user_profile', defaultMessage: 'Profile'}),
-            {userId, fromSettings: true}
+            {userId, fromSettings: true},
         );
     });
 
@@ -207,32 +227,41 @@ export default class SettingsDrawer extends PureComponent {
     });
 
     openModal = (screen, title, passProps) => {
-        const {navigator, theme} = this.props;
-
         this.closeSettingsSidebar();
 
+        const options = {
+            topBar: {
+                leftButtons: [{
+                    id: 'close-settings',
+                    icon: this.closeButton,
+                }],
+            },
+        };
+
         InteractionManager.runAfterInteractions(() => {
-            navigator.showModal({
-                screen,
-                title,
-                animationType: 'slide-up',
-                animated: true,
-                backButtonTitle: '',
-                navigatorStyle: {
-                    navBarTextColor: theme.sidebarHeaderTextColor,
-                    navBarBackgroundColor: theme.sidebarHeaderBg,
-                    navBarButtonColor: theme.sidebarHeaderTextColor,
-                    screenBackgroundColor: theme.centerChannelBg,
-                },
-                navigatorButtons: {
-                    leftButtons: [{
-                        id: 'close-settings',
-                        icon: this.closeButton,
-                    }],
-                },
-                passProps,
-            });
+            showModal(screen, title, passProps, options);
         });
+    };
+
+    updateStatus = (status) => {
+        const {currentUser: {id: currentUserId}} = this.props;
+        this.props.actions.setStatus({
+            user_id: currentUserId,
+            status,
+        });
+    };
+
+    setStatus = (status) => {
+        const {status: currentUserStatus} = this.props;
+
+        if (currentUserStatus === General.OUT_OF_OFFICE) {
+            dismissModal();
+            this.closeSettingsSidebar();
+            this.confirmReset(status);
+            return;
+        }
+        this.updateStatus(status);
+        EventEmitter.emit(NavigationTypes.NAVIGATION_CLOSE_MODAL);
     };
 
     renderUserStatusIcon = (userId) => {
@@ -251,7 +280,7 @@ export default class SettingsDrawer extends PureComponent {
     };
 
     renderNavigationView = () => {
-        const {currentUser, navigator, theme} = this.props;
+        const {currentUser, theme} = this.props;
         const style = getStyleSheet(theme);
 
         return (
@@ -261,7 +290,6 @@ export default class SettingsDrawer extends PureComponent {
                 footerColor={theme.centerChannelBg}
                 footerComponent={<View style={style.container}/>}
                 headerComponent={<View style={style.container}/>}
-                navigator={navigator}
                 theme={theme}
             >
                 <View style={style.container}>
@@ -342,41 +370,14 @@ export default class SettingsDrawer extends PureComponent {
         );
     };
 
-    confirmReset = (status) => {
-        const {intl} = this.context;
-        confirmOutOfOfficeDisabled(intl, status, this.updateStatus);
-    };
-
-    updateStatus = (status) => {
-        const {currentUser: {id: currentUserId}} = this.props;
-        this.props.actions.setStatus({
-            user_id: currentUserId,
-            status,
-        });
-    };
-
-    setStatus = (status) => {
-        const {status: currentUserStatus, navigator} = this.props;
-
-        if (currentUserStatus === General.OUT_OF_OFFICE) {
-            navigator.dismissModal({
-                animationType: 'none',
-            });
-            this.closeSettingsSidebar();
-            this.confirmReset(status);
-            return;
-        }
-        this.updateStatus(status);
-        EventEmitter.emit(NavigationTypes.NAVIGATION_CLOSE_MODAL);
-    };
-
     render() {
-        const {children, deviceWidth} = this.props;
-        const drawerWidth = DeviceTypes.IS_TABLET ? DRAWER_TABLET_WIDTH : (deviceWidth - DRAWER_INITIAL_OFFSET);
+        const {children} = this.props;
+        const {deviceWidth, openDrawerOffset} = this.state;
+        const drawerWidth = DeviceTypes.IS_TABLET ? TABLET_WIDTH : (deviceWidth - openDrawerOffset);
 
         return (
             <DrawerLayout
-                ref='drawer'
+                ref={this.setDrawerRef}
                 renderNavigationView={this.renderNavigationView}
                 onDrawerClose={this.handleDrawerClose}
                 onDrawerOpen={this.handleDrawerOpen}

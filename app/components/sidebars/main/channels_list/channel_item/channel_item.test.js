@@ -31,7 +31,6 @@ describe('ChannelItem', () => {
         isUnread: true,
         hasDraft: false,
         mentions: 0,
-        navigator: {push: () => {}}, // eslint-disable-line no-empty-function
         onSelectChannel: () => {}, // eslint-disable-line no-empty-function
         shouldHideChannel: false,
         showUnreadForMsgs: true,
@@ -39,6 +38,7 @@ describe('ChannelItem', () => {
         unreadMsgs: 1,
         isSearchResult: false,
         isBot: false,
+        isLandscape: false,
     };
 
     test('should match snapshot', () => {
@@ -115,6 +115,7 @@ describe('ChannelItem', () => {
             ...baseProps,
             channel: channelObj,
             currentChannelId: 'channel_id',
+            isArchived: true,
         };
 
         const wrapper = shallow(

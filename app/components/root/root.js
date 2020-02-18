@@ -9,26 +9,23 @@ import {Platform} from 'react-native';
 import {Client4} from 'mattermost-redux/client';
 import EventEmitter from 'mattermost-redux/utils/event_emitter';
 
-import {NavigationTypes, ViewTypes} from 'app/constants';
+import {resetToTeams} from 'app/actions/navigation';
+import {NavigationTypes} from 'app/constants';
 import {getTranslations} from 'app/i18n';
 
 export default class Root extends PureComponent {
     static propTypes = {
         children: PropTypes.node,
-        navigator: PropTypes.object,
         excludeEvents: PropTypes.bool,
-        currentChannelId: PropTypes.string,
         currentUrl: PropTypes.string,
         locale: PropTypes.string.isRequired,
         theme: PropTypes.object.isRequired,
     };
 
-    componentWillMount() {
+    componentDidMount() {
         Client4.setAcceptLanguage(this.props.locale);
 
         if (!this.props.excludeEvents) {
-            EventEmitter.on(ViewTypes.NOTIFICATION_IN_APP, this.handleInAppNotification);
-            EventEmitter.on(ViewTypes.NOTIFICATION_TAPPED, this.handleNotificationTapped);
             EventEmitter.on(NavigationTypes.NAVIGATION_NO_TEAMS, this.handleNoTeams);
             EventEmitter.on(NavigationTypes.NAVIGATION_ERROR_TEAMS, this.errorTeamsList);
         }
@@ -42,32 +39,17 @@ export default class Root extends PureComponent {
 
     componentWillUnmount() {
         if (!this.props.excludeEvents) {
-            EventEmitter.off(ViewTypes.NOTIFICATION_IN_APP, this.handleInAppNotification);
-            EventEmitter.off(ViewTypes.NOTIFICATION_TAPPED, this.handleNotificationTapped);
             EventEmitter.off(NavigationTypes.NAVIGATION_NO_TEAMS, this.handleNoTeams);
             EventEmitter.off(NavigationTypes.NAVIGATION_ERROR_TEAMS, this.errorTeamsList);
         }
     }
 
-    handleInAppNotification = (notification) => {
-        const {data} = notification;
-        const {currentChannelId, navigator} = this.props;
-
-        if (data && data.channel_id !== currentChannelId) {
-            navigator.showInAppNotification({
-                screen: 'Notification',
-                position: 'top',
-                autoDismissTimerSec: 5,
-                dismissWithSwipe: true,
-                passProps: {
-                    notification,
-                },
-            });
-        }
-    };
+    setProviderRef = (ref) => {
+        this.providerRef = ref;
+    }
 
     handleNoTeams = () => {
-        if (!this.refs.provider) {
+        if (!this.providerRef) {
             setTimeout(this.handleNoTeams, 200);
             return;
         }
@@ -75,7 +57,7 @@ export default class Root extends PureComponent {
     };
 
     errorTeamsList = () => {
-        if (!this.refs.provider) {
+        if (!this.providerRef) {
             setTimeout(this.errorTeamsList, 200);
             return;
         }
@@ -83,28 +65,24 @@ export default class Root extends PureComponent {
     }
 
     navigateToTeamsPage = (screen) => {
-        const {currentUrl, navigator, theme} = this.props;
-        const {intl} = this.refs.provider.getChildContext();
+        const {currentUrl, theme} = this.props;
+        const {intl} = this.providerRef.getChildContext();
 
-        let navigatorButtons;
         let passProps = {theme};
+        const options = {topBar: {}};
         if (Platform.OS === 'android') {
-            navigatorButtons = {
-                rightButtons: [{
-                    title: intl.formatMessage({id: 'sidebar_right_menu.logout', defaultMessage: 'Logout'}),
-                    id: 'logout',
-                    buttonColor: theme.sidebarHeaderTextColor,
-                    showAsAction: 'always',
-                }],
-            };
+            options.topBar.rightButtons = [{
+                id: 'logout',
+                text: intl.formatMessage({id: 'sidebar_right_menu.logout', defaultMessage: 'Logout'}),
+                color: theme.sidebarHeaderTextColor,
+                showAsAction: 'always',
+            }];
         } else {
-            navigatorButtons = {
-                leftButtons: [{
-                    title: intl.formatMessage({id: 'sidebar_right_menu.logout', defaultMessage: 'Logout'}),
-                    id: 'logout',
-                    buttonColor: theme.sidebarHeaderTextColor,
-                }],
-            };
+            options.topBar.leftButtons = [{
+                id: 'logout',
+                text: intl.formatMessage({id: 'sidebar_right_menu.logout', defaultMessage: 'Logout'}),
+                color: theme.sidebarHeaderTextColor,
+            }];
         }
 
         if (screen === 'SelectTeam') {
@@ -115,40 +93,18 @@ export default class Root extends PureComponent {
             };
         }
 
-        navigator.resetTo({
-            screen,
-            title: intl.formatMessage({id: 'mobile.routes.selectTeam', defaultMessage: 'Select Team'}),
-            animated: false,
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
-            },
-            navigatorButtons,
-            passProps,
-        });
+        const title = intl.formatMessage({id: 'mobile.routes.selectTeam', defaultMessage: 'Select Team'});
+
+        resetToTeams(screen, title, passProps, options);
     }
-
-    handleNotificationTapped = async () => {
-        const {navigator} = this.props;
-
-        if (Platform.OS === 'android') {
-            navigator.dismissModal({animation: 'none'});
-        }
-
-        navigator.popToRoot({
-            animated: false,
-        });
-    };
 
     render() {
         const locale = this.props.locale;
 
         return (
             <IntlProvider
-                ref='provider'
+                key={locale}
+                ref={this.setProviderRef}
                 locale={locale}
                 messages={getTranslations(locale)}
             >

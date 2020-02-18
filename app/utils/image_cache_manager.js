@@ -6,6 +6,8 @@
 import {Platform} from 'react-native';
 import RNFetchBlob from 'rn-fetch-blob';
 
+import Url from 'url-parse';
+
 import {Client4} from 'mattermost-redux/client';
 
 import {DeviceTypes} from 'app/constants';
@@ -22,11 +24,12 @@ let siteUrl;
 export default class ImageCacheManager {
     static listeners = {};
 
-    static cache = async (filename, uri, listener) => {
+    static cache = async (filename, fileUri, listener) => {
         if (!listener) {
             console.warn('Unable to cache image when no listener is provided'); // eslint-disable-line no-console
         }
 
+        const uri = parseUri(fileUri);
         const {path, exists} = await getCacheFile(filename, uri);
         const prefix = Platform.OS === 'android' ? 'file://' : '';
         let pathWithPrefix = `${prefix}${path}`;
@@ -79,7 +82,8 @@ export default class ImageCacheManager {
                     notifyAll(uri, pathWithPrefix);
                 } catch (e) {
                     RNFetchBlob.fs.unlink(pathWithPrefix);
-                    notifyAll(uri, uri);
+                    notifyAll(uri, null);
+                    unsubscribe(uri);
                     return null;
                 }
             } else {
@@ -93,6 +97,11 @@ export default class ImageCacheManager {
         return pathWithPrefix;
     };
 }
+
+const parseUri = (uri) => {
+    const url = new Url(uri);
+    return url.href;
+};
 
 export const getCacheFile = async (name, uri) => {
     const filename = name || uri.substring(uri.lastIndexOf('/'), uri.indexOf('?') === -1 ? uri.length : uri.indexOf('?'));
@@ -150,7 +159,7 @@ const notifyAll = (uri, path) => {
 };
 
 // taken from https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript-jquery
-const hashCode = (str) => {
+export const hashCode = (str) => {
     let hash = 0;
     let i;
     let chr;

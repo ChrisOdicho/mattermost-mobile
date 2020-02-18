@@ -266,13 +266,26 @@ function postVisibility(state = {}, action) {
     }
     case ViewTypes.INCREASE_POST_VISIBILITY: {
         const nextState = {...state};
-        nextState[action.data] += action.amount;
+        if (nextState[action.data]) {
+            nextState[action.data] += action.amount;
+        } else {
+            nextState[action.data] = action.amount;
+        }
         return nextState;
     }
     case ViewTypes.RECEIVED_FOCUSED_POST: {
         const nextState = {...state};
         nextState[action.channelId] = ViewTypes.POST_VISIBILITY_CHUNK_SIZE;
         return nextState;
+    }
+    case PostTypes.RECEIVED_NEW_POST: {
+        if (action.data.id === action.data.pending_post_id) {
+            const nextState = {...state};
+            nextState[action.data.channel_id] += 1;
+            return nextState;
+        }
+
+        return state;
     }
     default:
         return state;
@@ -342,6 +355,11 @@ function lastChannelViewTime(state = {}, action) {
             return nextState;
         }
         return state;
+    }
+
+    case ChannelTypes.POST_UNREAD_SUCCESS: {
+        const data = action.data;
+        return {...state, [data.channelId]: data.lastViewedAt};
     }
 
     default:

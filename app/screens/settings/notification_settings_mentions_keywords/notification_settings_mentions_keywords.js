@@ -3,18 +3,27 @@
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {ScrollView, View} from 'react-native';
+import {Navigation} from 'react-native-navigation';
 
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 import FormattedText from 'app/components/formatted_text';
 import StatusBar from 'app/components/status_bar';
 import TextInputWithLocalizedPlaceholder from 'app/components/text_input_with_localized_placeholder';
-import {changeOpacity, makeStyleSheetFromTheme, setNavigatorStyles} from 'app/utils/theme';
+import {
+    changeOpacity,
+    makeStyleSheetFromTheme,
+    setNavigatorStyles,
+    getKeyboardAppearanceFromTheme,
+} from 'app/utils/theme';
+import {popTopScreen} from 'app/actions/navigation';
 
 export default class NotificationSettingsMentionsKeywords extends PureComponent {
     static propTypes = {
+        componentId: PropTypes.string,
         keywords: PropTypes.string,
-        navigator: PropTypes.object,
         onBack: PropTypes.func.isRequired,
         theme: PropTypes.object.isRequired,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     constructor(props) {
@@ -23,18 +32,20 @@ export default class NotificationSettingsMentionsKeywords extends PureComponent 
         this.state = {
             keywords: props.keywords,
         };
-
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
     }
 
-    componentWillReceiveProps(nextProps) {
-        if (this.props.theme !== nextProps.theme) {
-            setNavigatorStyles(this.props.navigator, nextProps.theme);
+    componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+    }
+
+    componentDidUpdate(prevProps) {
+        if (this.props.theme !== prevProps.theme) {
+            setNavigatorStyles(this.props.componentId, this.props.theme);
         }
     }
 
     handleSubmit = () => {
-        this.props.navigator.pop();
+        popTopScreen();
     };
 
     keywordsRef = (ref) => {
@@ -45,22 +56,15 @@ export default class NotificationSettingsMentionsKeywords extends PureComponent 
         return this.setState({keywords});
     };
 
-    onNavigatorEvent = (event) => {
-        if (event.type === 'ScreenChangedEvent') {
-            switch (event.id) {
-            case 'willDisappear':
-                this.props.onBack(this.state.keywords);
-                break;
-            }
-        }
-    };
+    componentDidDisappear() {
+        this.props.onBack(this.state.keywords);
+    }
 
     render() {
-        const {theme} = this.props;
+        const {theme, isLandscape} = this.props;
         const {keywords} = this.state;
 
         const style = getStyleSheet(theme);
-
         return (
             <View style={style.container}>
                 <StatusBar/>
@@ -78,15 +82,16 @@ export default class NotificationSettingsMentionsKeywords extends PureComponent 
                             onSubmitEditing={this.handleSubmit}
                             multiline={true}
                             numberOfLines={1}
-                            style={style.input}
+                            style={[style.input, padding(isLandscape)]}
                             autoCapitalize='none'
                             autoCorrect={false}
                             placeholder={{id: 'mobile.notification_settings_mentions.keywordsDescription', defaultMessage: 'Other words that trigger a mention'}}
                             placeholderTextColor={changeOpacity(theme.centerChannelColor, 0.4)}
                             returnKeyType='done'
+                            keyboardAppearance={getKeyboardAppearanceFromTheme(theme)}
                         />
                     </View>
-                    <View style={style.helpContainer}>
+                    <View style={[style.helpContainer, padding(isLandscape)]}>
                         <FormattedText
                             id='mobile.notification_settings_mentions.keywordsHelp'
                             defaultMessage='Keywords are non-case sensitive and should be separated by a comma.'
@@ -107,6 +112,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
         },
         wrapper: {
             backgroundColor: changeOpacity(theme.centerChannelColor, 0.06),
+            flex: 1,
             paddingTop: 35,
         },
         inputContainer: {
@@ -120,8 +126,8 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
             color: theme.centerChannelColor,
             fontSize: 15,
             height: 150,
-            paddingHorizontal: 15,
             paddingVertical: 10,
+            paddingHorizontal: 15,
         },
         helpContainer: {
             marginTop: 10,

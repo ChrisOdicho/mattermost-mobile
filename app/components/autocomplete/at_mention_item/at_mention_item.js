@@ -5,13 +5,15 @@ import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {
     Text,
-    TouchableOpacity,
     View,
 } from 'react-native';
 
 import ProfilePicture from 'app/components/profile_picture';
-import BotTag from 'app/components/bot_tag';
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
+import {BotTag, GuestTag} from 'app/components/tag';
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 import {makeStyleSheetFromTheme} from 'app/utils/theme';
+import FormattedText from 'app/components/formatted_text';
 
 export default class AtMentionItem extends PureComponent {
     static propTypes = {
@@ -20,8 +22,11 @@ export default class AtMentionItem extends PureComponent {
         onPress: PropTypes.func.isRequired,
         userId: PropTypes.string.isRequired,
         username: PropTypes.string,
+        isGuest: PropTypes.bool,
         isBot: PropTypes.bool,
         theme: PropTypes.object.isRequired,
+        isLandscape: PropTypes.bool.isRequired,
+        isCurrentUser: PropTypes.bool.isRequired,
     };
 
     static defaultProps = {
@@ -42,16 +47,20 @@ export default class AtMentionItem extends PureComponent {
             username,
             theme,
             isBot,
+            isLandscape,
+            isGuest,
+            isCurrentUser,
         } = this.props;
 
         const style = getStyleFromTheme(theme);
         const hasFullName = firstName.length > 0 && lastName.length > 0;
 
         return (
-            <TouchableOpacity
+            <TouchableWithFeedback
                 key={userId}
                 onPress={this.completeMention}
-                style={style.row}
+                style={[style.row, padding(isLandscape)]}
+                type={'opacity'}
             >
                 <View style={style.rowPicture}>
                     <ProfilePicture
@@ -66,9 +75,19 @@ export default class AtMentionItem extends PureComponent {
                     show={isBot}
                     theme={theme}
                 />
+                <GuestTag
+                    show={isGuest}
+                    theme={theme}
+                />
                 {hasFullName && <Text style={style.rowUsername}>{' - '}</Text>}
                 {hasFullName && <Text style={style.rowFullname}>{`${firstName} ${lastName}`}</Text>}
-            </TouchableOpacity>
+                {isCurrentUser &&
+                    <FormattedText
+                        style={style.rowFullname}
+                        id='suggestion.mention.you'
+                        defaultMessage='(you)'
+                    />}
+            </TouchableWithFeedback>
         );
     }
 }

@@ -2,7 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {PureComponent} from 'react';
-import {Text, TouchableOpacity, View} from 'react-native';
+import {Text, View} from 'react-native';
 import PropTypes from 'prop-types';
 import {intlShape} from 'react-intl';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -10,9 +10,12 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import {displayUsername} from 'mattermost-redux/utils/user_utils';
 
 import FormattedText from 'app/components/formatted_text';
+import {paddingHorizontal as padding} from 'app/components/safe_area_view/iphone_x_spacing';
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 import {preventDoubleTap} from 'app/utils/tap';
 import {makeStyleSheetFromTheme, changeOpacity} from 'app/utils/theme';
 import {ViewTypes} from 'app/constants';
+import {goToScreen} from 'app/actions/navigation';
 
 export default class AutocompleteSelector extends PureComponent {
     static propTypes = {
@@ -28,11 +31,12 @@ export default class AutocompleteSelector extends PureComponent {
         showRequiredAsterisk: PropTypes.bool,
         teammateNameDisplay: PropTypes.string,
         theme: PropTypes.object.isRequired,
-        navigator: PropTypes.object,
         onSelected: PropTypes.func,
         helpText: PropTypes.node,
         errorText: PropTypes.node,
         roundedBorders: PropTypes.bool,
+        isLandscape: PropTypes.bool.isRequired,
+        disabled: PropTypes.bool,
     };
 
     static contextTypes = {
@@ -96,22 +100,12 @@ export default class AutocompleteSelector extends PureComponent {
 
     goToSelectorScreen = preventDoubleTap(() => {
         const {formatMessage} = this.context.intl;
-        const {navigator, theme, actions, dataSource, options, placeholder} = this.props;
+        const {actions, dataSource, options, placeholder} = this.props;
+        const screen = 'SelectorScreen';
+        const title = placeholder || formatMessage({id: 'mobile.action_menu.select', defaultMessage: 'Select an option'});
 
         actions.setAutocompleteSelector(dataSource, this.handleSelect, options);
-
-        navigator.push({
-            backButtonTitle: '',
-            screen: 'SelectorScreen',
-            title: placeholder || formatMessage({id: 'mobile.action_menu.select', defaultMessage: 'Select an option'}),
-            animated: true,
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
-            },
-        });
+        goToScreen(screen, title);
     });
 
     render() {
@@ -125,6 +119,8 @@ export default class AutocompleteSelector extends PureComponent {
             optional,
             showRequiredAsterisk,
             roundedBorders,
+            isLandscape,
+            disabled,
         } = this.props;
         const {selectedText} = this.state;
         const style = getStyleSheet(theme);
@@ -190,14 +186,18 @@ export default class AutocompleteSelector extends PureComponent {
 
         return (
             <View style={style.container}>
-                {labelContent}
-                <TouchableOpacity
-                    style={style.flex}
+                <View style={padding(isLandscape)}>
+                    {labelContent}
+                </View>
+                <TouchableWithFeedback
+                    style={disabled ? style.disabled : null}
                     onPress={this.goToSelectorScreen}
+                    type={'opacity'}
+                    disabled={disabled}
                 >
                     <View style={inputStyle}>
                         <Text
-                            style={selectedStyle}
+                            style={[selectedStyle, padding(isLandscape)]}
                             numberOfLines={1}
                         >
                             {text}
@@ -205,12 +205,14 @@ export default class AutocompleteSelector extends PureComponent {
                         <Icon
                             name='chevron-down'
                             color={changeOpacity(theme.centerChannelColor, 0.5)}
-                            style={style.icon}
+                            style={[style.icon, padding(isLandscape)]}
                         />
                     </View>
-                </TouchableOpacity>
-                {helpTextContent}
-                {errorTextContent}
+                </TouchableWithFeedback>
+                <View style={padding(isLandscape)}>
+                    {helpTextContent}
+                    {errorTextContent}
+                </View>
             </View>
         );
     }
@@ -284,6 +286,9 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
         asterisk: {
             color: theme.errorTextColor,
             fontSize: 14,
+        },
+        disabled: {
+            opacity: 0.5,
         },
     };
 });

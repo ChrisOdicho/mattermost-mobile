@@ -7,7 +7,7 @@ import {connect} from 'react-redux';
 import {editPost} from 'mattermost-redux/actions/posts';
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
 
-import {getDimensions} from 'app/selectors/device';
+import {getDimensions, isLandscape} from 'app/selectors/device';
 
 import EditPost from './edit_post';
 
@@ -19,6 +19,7 @@ function mapStateToProps(state, ownProps) {
         editPostRequest,
         post: ownProps.post,
         theme: getTheme(state),
+        isLandscape: isLandscape(state),
     };
 }
 

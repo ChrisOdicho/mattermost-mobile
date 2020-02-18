@@ -3,9 +3,10 @@
 
 import {connect} from 'react-redux';
 
-import {getDimensions} from 'app/selectors/device';
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
 import {canDownloadFilesOnMobile} from 'mattermost-redux/selectors/entities/general';
+
+import {getDimensions} from 'app/selectors/device';
 
 import ImagePreview from './image_preview';
 

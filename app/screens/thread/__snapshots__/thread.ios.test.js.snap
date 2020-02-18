@@ -4,7 +4,16 @@ exports[`thread should match snapshot, has root post 1`] = `
 <React.Fragment>
   <Connect(SafeAreaIos)
     excludeHeader={true}
+    forceInsets={true}
   >
+    <View
+      style={
+        Object {
+          "backgroundColor": "rgba(61,60,64,0.2)",
+          "height": 1,
+        }
+      }
+    />
     <Connect(StatusBar) />
     <React.Fragment>
       <Connect(PostList)
@@ -13,28 +22,6 @@ exports[`thread should match snapshot, has root post 1`] = `
         lastPostIndex={2}
         lastViewedAt={0}
         location="thread"
-        navigator={
-          Object {
-            "dismissModal": [MockFunction],
-            "pop": [MockFunction],
-            "resetTo": [MockFunction],
-            "setTitle": [MockFunction] {
-              "calls": Array [
-                Array [
-                  Object {
-                    "title": undefined,
-                  },
-                ],
-              ],
-              "results": Array [
-                Object {
-                  "type": "return",
-                  "value": undefined,
-                },
-              ],
-            },
-          }
-        }
         onPostPress={[Function]}
         postIds={
           Array [
@@ -45,7 +32,7 @@ exports[`thread should match snapshot, has root post 1`] = `
         }
         renderFooter={
           <Loading
-            color="grey"
+            color="#3d3c40"
             size="large"
             style={Object {}}
           />
@@ -55,9 +42,6 @@ exports[`thread should match snapshot, has root post 1`] = `
       <View
         nativeID="threadAccessoriesContainer"
       >
-        <Connect(FileUploadPreview)
-          rootId="root_id"
-        />
         <ForwardRef(forwardConnectRef)
           cursorPositionEvent="onThreadTextBoxCursorChange"
           maxHeight={200}
@@ -76,28 +60,6 @@ exports[`thread should match snapshot, has root post 1`] = `
       channelId="channel_id"
       channelIsArchived={false}
       cursorPositionEvent="onThreadTextBoxCursorChange"
-      navigator={
-        Object {
-          "dismissModal": [MockFunction],
-          "pop": [MockFunction],
-          "resetTo": [MockFunction],
-          "setTitle": [MockFunction] {
-            "calls": Array [
-              Array [
-                Object {
-                  "title": undefined,
-                },
-              ],
-            ],
-            "results": Array [
-              Object {
-                "type": "return",
-                "value": undefined,
-              },
-            ],
-          },
-        }
-      }
       onCloseChannel={[Function]}
       rootId="root_id"
       valueEvent="onThreadTextBoxValueChange"
@@ -110,10 +72,19 @@ exports[`thread should match snapshot, no root post, loading 1`] = `
 <React.Fragment>
   <Connect(SafeAreaIos)
     excludeHeader={true}
+    forceInsets={true}
   >
+    <View
+      style={
+        Object {
+          "backgroundColor": "rgba(61,60,64,0.2)",
+          "height": 1,
+        }
+      }
+    />
     <Connect(StatusBar) />
     <Loading
-      color="grey"
+      color="#3d3c40"
       size="large"
       style={Object {}}
     />
@@ -128,28 +99,6 @@ exports[`thread should match snapshot, render footer 1`] = `
   lastPostIndex={2}
   lastViewedAt={0}
   location="thread"
-  navigator={
-    Object {
-      "dismissModal": [MockFunction],
-      "pop": [MockFunction],
-      "resetTo": [MockFunction],
-      "setTitle": [MockFunction] {
-        "calls": Array [
-          Array [
-            Object {
-              "title": undefined,
-            },
-          ],
-        ],
-        "results": Array [
-          Object {
-            "type": "return",
-            "value": undefined,
-          },
-        ],
-      },
-    }
-  }
   onPostPress={[Function]}
   postIds={
     Array [
@@ -160,7 +109,7 @@ exports[`thread should match snapshot, render footer 1`] = `
   }
   renderFooter={
     <Loading
-      color="grey"
+      color="#3d3c40"
       size="large"
       style={Object {}}
     />
@@ -176,28 +125,6 @@ exports[`thread should match snapshot, render footer 2`] = `
   lastPostIndex={2}
   lastViewedAt={0}
   location="thread"
-  navigator={
-    Object {
-      "dismissModal": [MockFunction],
-      "pop": [MockFunction],
-      "resetTo": [MockFunction],
-      "setTitle": [MockFunction] {
-        "calls": Array [
-          Array [
-            Object {
-              "title": undefined,
-            },
-          ],
-        ],
-        "results": Array [
-          Object {
-            "type": "return",
-            "value": undefined,
-          },
-        ],
-      },
-    }
-  }
   onPostPress={[Function]}
   postIds={
     Array [
@@ -215,10 +142,19 @@ exports[`thread should match snapshot, render footer 3`] = `
 <React.Fragment>
   <Connect(SafeAreaIos)
     excludeHeader={true}
+    forceInsets={true}
   >
+    <View
+      style={
+        Object {
+          "backgroundColor": "rgba(61,60,64,0.2)",
+          "height": 1,
+        }
+      }
+    />
     <Connect(StatusBar) />
     <Loading
-      color="grey"
+      color="#3d3c40"
       size="large"
       style={Object {}}
     />

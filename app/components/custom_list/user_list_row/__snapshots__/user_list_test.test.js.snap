@@ -14,6 +14,7 @@ exports[`UserListRow should match snapshot 1`] = `
   <CustomListRow
     enabled={true}
     id="21345"
+    isLandscape={false}
     onPress={[Function]}
   >
     <View
@@ -73,6 +74,39 @@ exports[`UserListRow should match snapshot 1`] = `
                 "dndIndicator": "#f74343",
                 "errorTextColor": "#fd5960",
                 "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
+                "mentionBj": "#ffffff",
+                "mentionColor": "#145dbf",
+                "mentionHighlightBg": "#ffe577",
+                "mentionHighlightLink": "#166de0",
+                "newMessageSeparator": "#ff8800",
+                "onlineIndicator": "#06d6a0",
+                "sidebarBg": "#145dbf",
+                "sidebarHeaderBg": "#1153ab",
+                "sidebarHeaderTextColor": "#ffffff",
+                "sidebarText": "#ffffff",
+                "sidebarTextActiveBorder": "#579eff",
+                "sidebarTextActiveColor": "#ffffff",
+                "sidebarTextHoverBg": "#4578bf",
+                "sidebarUnreadText": "#ffffff",
+                "type": "Mattermost",
+              }
+            }
+          />
+          <GuestTag
+            show={false}
+            theme={
+              Object {
+                "awayIndicator": "#ffbc42",
+                "buttonBg": "#166de0",
+                "buttonColor": "#ffffff",
+                "centerChannelBg": "#ffffff",
+                "centerChannelColor": "#3d3c40",
+                "codeTheme": "github",
+                "dndIndicator": "#f74343",
+                "errorTextColor": "#fd5960",
+                "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
                 "mentionBj": "#ffffff",
                 "mentionColor": "#145dbf",
                 "mentionHighlightBg": "#ffe577",
@@ -112,6 +146,7 @@ exports[`UserListRow should match snapshot for  currentUser with (you) populated
   <CustomListRow
     enabled={true}
     id="21345"
+    isLandscape={false}
     onPress={[Function]}
   >
     <View
@@ -169,6 +204,39 @@ exports[`UserListRow should match snapshot for  currentUser with (you) populated
                 "dndIndicator": "#f74343",
                 "errorTextColor": "#fd5960",
                 "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
+                "mentionBj": "#ffffff",
+                "mentionColor": "#145dbf",
+                "mentionHighlightBg": "#ffe577",
+                "mentionHighlightLink": "#166de0",
+                "newMessageSeparator": "#ff8800",
+                "onlineIndicator": "#06d6a0",
+                "sidebarBg": "#145dbf",
+                "sidebarHeaderBg": "#1153ab",
+                "sidebarHeaderTextColor": "#ffffff",
+                "sidebarText": "#ffffff",
+                "sidebarTextActiveBorder": "#579eff",
+                "sidebarTextActiveColor": "#ffffff",
+                "sidebarTextHoverBg": "#4578bf",
+                "sidebarUnreadText": "#ffffff",
+                "type": "Mattermost",
+              }
+            }
+          />
+          <GuestTag
+            show={false}
+            theme={
+              Object {
+                "awayIndicator": "#ffbc42",
+                "buttonBg": "#166de0",
+                "buttonColor": "#ffffff",
+                "centerChannelBg": "#ffffff",
+                "centerChannelColor": "#3d3c40",
+                "codeTheme": "github",
+                "dndIndicator": "#f74343",
+                "errorTextColor": "#fd5960",
+                "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
                 "mentionBj": "#ffffff",
                 "mentionColor": "#145dbf",
                 "mentionHighlightBg": "#ffe577",
@@ -208,6 +276,7 @@ exports[`UserListRow should match snapshot for deactivated user 1`] = `
   <CustomListRow
     enabled={true}
     id="21345"
+    isLandscape={false}
     onPress={[Function]}
   >
     <View
@@ -267,6 +336,39 @@ exports[`UserListRow should match snapshot for deactivated user 1`] = `
                 "dndIndicator": "#f74343",
                 "errorTextColor": "#fd5960",
                 "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
+                "mentionBj": "#ffffff",
+                "mentionColor": "#145dbf",
+                "mentionHighlightBg": "#ffe577",
+                "mentionHighlightLink": "#166de0",
+                "newMessageSeparator": "#ff8800",
+                "onlineIndicator": "#06d6a0",
+                "sidebarBg": "#145dbf",
+                "sidebarHeaderBg": "#1153ab",
+                "sidebarHeaderTextColor": "#ffffff",
+                "sidebarText": "#ffffff",
+                "sidebarTextActiveBorder": "#579eff",
+                "sidebarTextActiveColor": "#ffffff",
+                "sidebarTextHoverBg": "#4578bf",
+                "sidebarUnreadText": "#ffffff",
+                "type": "Mattermost",
+              }
+            }
+          />
+          <GuestTag
+            show={false}
+            theme={
+              Object {
+                "awayIndicator": "#ffbc42",
+                "buttonBg": "#166de0",
+                "buttonColor": "#ffffff",
+                "centerChannelBg": "#ffffff",
+                "centerChannelColor": "#3d3c40",
+                "codeTheme": "github",
+                "dndIndicator": "#f74343",
+                "errorTextColor": "#fd5960",
+                "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
                 "mentionBj": "#ffffff",
                 "mentionColor": "#145dbf",
                 "mentionHighlightBg": "#ffe577",
@@ -297,6 +399,138 @@ exports[`UserListRow should match snapshot for deactivated user 1`] = `
             }
           }
         />
+      </View>
+    </View>
+  </CustomListRow>
+</View>
+`;
+
+exports[`UserListRow should match snapshot for guest user 1`] = `
+<View
+  style={
+    Object {
+      "flex": 1,
+      "flexDirection": "row",
+      "marginHorizontal": 10,
+      "overflow": "hidden",
+    }
+  }
+>
+  <CustomListRow
+    enabled={true}
+    id="21345"
+    isLandscape={false}
+    onPress={[Function]}
+  >
+    <View
+      style={
+        Object {
+          "alignItems": "center",
+          "color": "#3d3c40",
+          "flexDirection": "row",
+        }
+      }
+    >
+      <Connect(ProfilePicture)
+        size={32}
+        userId="21345"
+      />
+    </View>
+    <View
+      style={
+        Object {
+          "flex": 1,
+          "flexDirection": "column",
+          "justifyContent": "center",
+          "marginLeft": 10,
+        }
+      }
+    >
+      <View>
+        <View
+          style={
+            Object {
+              "flexDirection": "row",
+            }
+          }
+        >
+          <Text
+            ellipsizeMode="tail"
+            numberOfLines={1}
+            style={
+              Object {
+                "color": "#3d3c40",
+                "fontSize": 15,
+              }
+            }
+          >
+            @user
+          </Text>
+          <BotTag
+            show={false}
+            theme={
+              Object {
+                "awayIndicator": "#ffbc42",
+                "buttonBg": "#166de0",
+                "buttonColor": "#ffffff",
+                "centerChannelBg": "#ffffff",
+                "centerChannelColor": "#3d3c40",
+                "codeTheme": "github",
+                "dndIndicator": "#f74343",
+                "errorTextColor": "#fd5960",
+                "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
+                "mentionBj": "#ffffff",
+                "mentionColor": "#145dbf",
+                "mentionHighlightBg": "#ffe577",
+                "mentionHighlightLink": "#166de0",
+                "newMessageSeparator": "#ff8800",
+                "onlineIndicator": "#06d6a0",
+                "sidebarBg": "#145dbf",
+                "sidebarHeaderBg": "#1153ab",
+                "sidebarHeaderTextColor": "#ffffff",
+                "sidebarText": "#ffffff",
+                "sidebarTextActiveBorder": "#579eff",
+                "sidebarTextActiveColor": "#ffffff",
+                "sidebarTextHoverBg": "#4578bf",
+                "sidebarUnreadText": "#ffffff",
+                "type": "Mattermost",
+              }
+            }
+          />
+          <GuestTag
+            show={true}
+            theme={
+              Object {
+                "awayIndicator": "#ffbc42",
+                "buttonBg": "#166de0",
+                "buttonColor": "#ffffff",
+                "centerChannelBg": "#ffffff",
+                "centerChannelColor": "#3d3c40",
+                "codeTheme": "github",
+                "dndIndicator": "#f74343",
+                "errorTextColor": "#fd5960",
+                "linkColor": "#2389d7",
+                "mentionBg": "#ffffff",
+                "mentionBj": "#ffffff",
+                "mentionColor": "#145dbf",
+                "mentionHighlightBg": "#ffe577",
+                "mentionHighlightLink": "#166de0",
+                "newMessageSeparator": "#ff8800",
+                "onlineIndicator": "#06d6a0",
+                "sidebarBg": "#145dbf",
+                "sidebarHeaderBg": "#1153ab",
+                "sidebarHeaderTextColor": "#ffffff",
+                "sidebarText": "#ffffff",
+                "sidebarTextActiveBorder": "#579eff",
+                "sidebarTextActiveColor": "#ffffff",
+                "sidebarTextHoverBg": "#4578bf",
+                "sidebarUnreadText": "#ffffff",
+                "type": "Mattermost",
+              }
+            }
+          />
+        </View>
       </View>
     </View>
   </CustomListRow>

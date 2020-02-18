@@ -16,33 +16,36 @@ import os.log
         let _ = store.getEntities(true)
         let serverURL = store.getServerUrl()
         let sessionToken = store.getToken()
-        let urlString = "\(serverURL!)/api/v4/posts"
         
-        guard let uploadSessionData = UploadSessionManager.shared.getUploadSessionData(identifier: identifier) else {return}
-        guard let url = URL(string: urlString) else {return}
-        
-        if uploadSessionData.message != "" || uploadSessionData.fileIds.count > 0 {
-            let jsonObject: [String: Any] = [
-                "channel_id": uploadSessionData.channelId as Any,
-                "message": uploadSessionData.message as Any,
-                "file_ids": uploadSessionData.fileIds
-            ]
-            if !JSONSerialization.isValidJSONObject(jsonObject) {return}
+        if (serverURL != nil && sessionToken != nil) {
+            let urlString = "\(serverURL!)/api/v4/posts"
             
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("Bearer \(sessionToken!)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted)
+            guard let uploadSessionData = UploadSessionManager.shared.getUploadSessionData(identifier: identifier) else {return}
+            guard let url = URL(string: urlString) else {return}
             
-            if #available(iOS 12.0, *) {
-                os_log(OSLogType.default, "Mattermost will post identifier=%{public}@", identifier)
+            if uploadSessionData.message != "" || uploadSessionData.fileIds.count > 0 {
+                let jsonObject: [String: Any] = [
+                    "channel_id": uploadSessionData.channelId as Any,
+                    "message": uploadSessionData.message as Any,
+                    "file_ids": uploadSessionData.fileIds
+                ]
+                if !JSONSerialization.isValidJSONObject(jsonObject) {return}
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("Bearer \(sessionToken!)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted)
+                
+                if #available(iOS 12.0, *) {
+                    os_log(OSLogType.default, "Mattermost will post identifier=%{public}@", identifier)
+                }
+                
+                URLSession(configuration: .ephemeral).dataTask(with: request).resume()
+                
+                UploadSessionManager.shared.removeUploadSessionData(identifier: identifier)
+                UploadSessionManager.shared.clearTempDirectory()
             }
-            
-            URLSession(configuration: .ephemeral).dataTask(with: request).resume()
-            
-            UploadSessionManager.shared.removeUploadSessionData(identifier: identifier)
-            UploadSessionManager.shared.clearTempDirectory()
         }
     }
     
@@ -79,11 +82,13 @@ import os.log
         guard let identifier = session.configuration.identifier else {return}
         do {
             let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as! NSDictionary
-            let fileInfos = jsonObject.object(forKey: "file_infos") as! NSArray
-            if fileInfos.count > 0 {
-                let fileInfoData = fileInfos[0] as! NSDictionary
-                let fileId = fileInfoData.object(forKey: "id") as! String
-                UploadSessionManager.shared.appendCompletedUploadToSession(identifier: identifier, fileId: fileId)
+            if jsonObject.object(forKey: "file_infos") != nil {
+                let fileInfos = jsonObject.object(forKey: "file_infos") as! NSArray
+                if fileInfos.count > 0 {
+                    let fileInfoData = fileInfos[0] as! NSDictionary
+                    let fileId = fileInfoData.object(forKey: "id") as! String
+                    UploadSessionManager.shared.appendCompletedUploadToSession(identifier: identifier, fileId: fileId)
+                }
             }
         } catch {
             if #available(iOS 12.0, *) {
@@ -123,32 +128,45 @@ import os.log
             }
         })
     }
-    
+
     public func notificationReceipt(notificationId: Any?, receivedAt: Int, type: Any?) {
-        let store = StoreManager.shared() as StoreManager
-        let entities = store.getEntities(true)
-        if (entities != nil) {
-            let serverURL = store.getServerUrl()
-            let sessionToken = store.getToken()
-            let urlString = "\(serverURL!)/api/v4/notifications/ack"
-            
-            if (notificationId != nil) {
-                let jsonObject: [String: Any] = [
-                    "id": notificationId as Any,
-                    "received_at": receivedAt,
-                    "platform": "ios",
-                    "type": type as Any
-                ]
+        notificationReceipt(notificationId:notificationId, receivedAt:receivedAt, type:type, postId:nil, idLoaded: false, completion:{_, _ in})
+    }
 
-                if !JSONSerialization.isValidJSONObject(jsonObject) {return}
+    public func notificationReceipt(notificationId: Any?, receivedAt: Int, type: Any?, postId: Any? = nil, idLoaded: Bool, completion: @escaping (Data?, Error?) -> Void) {
+        if (notificationId != nil) {
+            let store = StoreManager.shared() as StoreManager
+            let entities = store.getEntities(true)
+            if (entities != nil) {
+                let serverURL = store.getServerUrl()
+                let sessionToken = store.getToken()
+                
+                if (serverURL != nil && sessionToken != nil) {
+                    let urlString = "\(serverURL!)/api/v4/notifications/ack"
+                    
+                    let jsonObject: [String: Any] = [
+                        "id": notificationId as Any,
+                        "received_at": receivedAt,
+                        "platform": "ios",
+                        "type": type as Any,
+                        "post_id": postId as Any,
+                        "is_id_loaded": idLoaded as Bool
+                    ]
+                    
+                    if !JSONSerialization.isValidJSONObject(jsonObject) {return}
 
-                guard let url = URL(string: urlString) else {return}
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.setValue("Bearer \(sessionToken!)", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted)
-                URLSession(configuration: .ephemeral).dataTask(with: request).resume()
+                    guard let url = URL(string: urlString) else {return}
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.setValue("Bearer \(sessionToken!)", forHTTPHeaderField: "Authorization")
+                    request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted)
+
+                    let task = URLSession(configuration: .ephemeral).dataTask(with: request) { data, _, error in
+                        completion(data, error)
+                    }
+                    task.resume()
+                }
             }
         }
     }

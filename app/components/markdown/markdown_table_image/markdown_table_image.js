@@ -7,15 +7,16 @@ import {intlShape} from 'react-intl';
 import {Text} from 'react-native';
 
 import CustomPropTypes from 'app/constants/custom_prop_types';
+import {getCurrentServerUrl} from 'app/init/credentials';
 import {preventDoubleTap} from 'app/utils/tap';
+import {goToScreen} from 'app/actions/navigation';
 
 export default class MarkdownTableImage extends React.PureComponent {
     static propTypes = {
         children: PropTypes.node.isRequired,
         source: PropTypes.string.isRequired,
         textStyle: CustomPropTypes.Style.isRequired,
-        navigator: PropTypes.object.isRequired,
-        serverURL: PropTypes.string.isRequired,
+        serverURL: PropTypes.string,
         theme: PropTypes.object.isRequired,
     };
 
@@ -24,33 +25,29 @@ export default class MarkdownTableImage extends React.PureComponent {
     };
 
     handlePress = preventDoubleTap(() => {
-        const {navigator, theme} = this.props;
-
-        navigator.push({
-            screen: 'TableImage',
-            title: this.context.intl.formatMessage({
-                id: 'mobile.routes.tableImage',
-                defaultMessage: 'Image',
-            }),
-            animated: true,
-            backButtonTitle: '',
-            passProps: {
-                imageSource: this.getImageSource(),
-            },
-            navigatorStyle: {
-                navBarTextColor: theme.sidebarHeaderTextColor,
-                navBarBackgroundColor: theme.sidebarHeaderBg,
-                navBarButtonColor: theme.sidebarHeaderTextColor,
-                screenBackgroundColor: theme.centerChannelBg,
-            },
+        const {intl} = this.context;
+        const screen = 'TableImage';
+        const title = intl.formatMessage({
+            id: 'mobile.routes.tableImage',
+            defaultMessage: 'Image',
         });
+        const passProps = {
+            imageSource: this.getImageSource(),
+        };
+
+        goToScreen(screen, title, passProps);
     });
 
-    getImageSource = () => {
+    getImageSource = async () => {
         let source = this.props.source;
+        let serverUrl = this.props.serverURL;
+
+        if (!serverUrl) {
+            serverUrl = await getCurrentServerUrl();
+        }
 
         if (source.startsWith('/')) {
-            source = `${this.props.serverURL}/${source}`;
+            source = serverUrl + source;
         }
 
         return source;

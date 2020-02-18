@@ -15,7 +15,6 @@ export default class AttachmentFields extends PureComponent {
         blockStyles: PropTypes.object.isRequired,
         fields: PropTypes.array,
         metadata: PropTypes.object,
-        navigator: PropTypes.object.isRequired,
         onPermalinkPress: PropTypes.func,
         textStyles: PropTypes.object.isRequired,
         theme: PropTypes.object.isRequired,
@@ -27,7 +26,6 @@ export default class AttachmentFields extends PureComponent {
             blockStyles,
             fields,
             metadata,
-            navigator,
             onPermalinkPress,
             textStyles,
             theme,
@@ -53,7 +51,7 @@ export default class AttachmentFields extends PureComponent {
                         style={style.field}
                     >
                         {fieldInfos}
-                    </View>
+                    </View>,
                 );
                 fieldInfos = [];
                 rowPos = 0;
@@ -88,11 +86,10 @@ export default class AttachmentFields extends PureComponent {
                             blockStyles={blockStyles}
                             imagesMetadata={metadata?.images}
                             value={(field.value || '')}
-                            navigator={navigator}
                             onPermalinkPress={onPermalinkPress}
                         />
                     </View>
-                </View>
+                </View>,
             );
 
             rowPos += 1;
@@ -106,7 +103,7 @@ export default class AttachmentFields extends PureComponent {
                     style={style.table}
                 >
                     {fieldInfos}
-                </View>
+                </View>,
             );
         }
 

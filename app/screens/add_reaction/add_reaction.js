@@ -7,15 +7,17 @@ import {
     StyleSheet,
     View,
 } from 'react-native';
+import {Navigation} from 'react-native-navigation';
 
 import EmojiPicker from 'app/components/emoji_picker';
 import {emptyFunction} from 'app/utils/general';
 import {setNavigatorStyles} from 'app/utils/theme';
+import {dismissModal, setButtons} from 'app/actions/navigation';
 
 export default class AddReaction extends PureComponent {
     static propTypes = {
+        componentId: PropTypes.string,
         closeButton: PropTypes.object,
-        navigator: PropTypes.object.isRequired,
         onEmojiPress: PropTypes.func,
         theme: PropTypes.object.isRequired,
     };
@@ -31,32 +33,29 @@ export default class AddReaction extends PureComponent {
     constructor(props) {
         super(props);
 
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
-        props.navigator.setButtons({
+        setButtons(props.componentId, {
             leftButtons: [{...this.leftButton, icon: props.closeButton}],
         });
     }
 
-    componentWillReceiveProps(nextProps) {
-        if (this.props.theme !== nextProps.theme) {
-            setNavigatorStyles(this.props.navigator, nextProps.theme);
+    componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+    }
+
+    componentDidUpdate(prevProps) {
+        if (this.props.theme !== prevProps.theme) {
+            setNavigatorStyles(this.props.componentId, this.props.theme);
+        }
+    }
+
+    navigationButtonPressed({buttonId}) {
+        if (buttonId === 'close-edit-post') {
+            this.close();
         }
     }
 
     close = () => {
-        this.props.navigator.dismissModal({
-            animationType: 'slide-down',
-        });
-    };
-
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            switch (event.id) {
-            case 'close-edit-post':
-                this.close();
-                break;
-            }
-        }
+        dismissModal();
     };
 
     handleEmojiPress = (emoji) => {

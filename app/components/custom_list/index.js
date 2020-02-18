@@ -3,10 +3,11 @@
 
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
-import {FlatList, Keyboard, Platform, SectionList, Text, View} from 'react-native';
+import {FlatList, Keyboard, Platform, RefreshControl, SectionList, Text, View} from 'react-native';
 
 import {ListTypes} from 'app/constants';
 import {makeStyleSheetFromTheme, changeOpacity} from 'app/utils/theme';
+import {paddingLeft as padding} from 'app/components/safe_area_view/iphone_x_spacing';
 
 export const FLATLIST = 'flat';
 export const SECTIONLIST = 'section';
@@ -17,6 +18,7 @@ export default class CustomList extends PureComponent {
     static propTypes = {
         data: PropTypes.array.isRequired,
         extraData: PropTypes.any,
+        canRefresh: PropTypes.bool,
         listType: PropTypes.oneOf([FLATLIST, SECTIONLIST]),
         loading: PropTypes.bool,
         loadingComponent: PropTypes.element,
@@ -30,9 +32,12 @@ export default class CustomList extends PureComponent {
         selectable: PropTypes.bool,
         theme: PropTypes.object.isRequired,
         shouldRenderSeparator: PropTypes.bool,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     static defaultProps = {
+        canRefresh: true,
+        isLandscape: false,
         listType: FLATLIST,
         showNoResults: true,
         shouldRenderSeparator: true,
@@ -107,8 +112,19 @@ export default class CustomList extends PureComponent {
     };
 
     renderFlatList = () => {
-        const {data, extraData, theme, onRefresh, refreshing} = this.props;
+        const {canRefresh, data, extraData, theme, onRefresh, refreshing} = this.props;
         const style = getStyleFromTheme(theme);
+
+        let refreshControl;
+        if (canRefresh) {
+            refreshControl = (
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={[theme.centerChannelColor]}
+                    tintColor={theme.centerChannelColor}
+                />);
+        }
 
         return (
             <FlatList
@@ -125,8 +141,7 @@ export default class CustomList extends PureComponent {
                 maxToRenderPerBatch={INITIAL_BATCH_TO_RENDER + 1}
                 onLayout={this.handleLayout}
                 onScroll={this.handleScroll}
-                onRefresh={onRefresh}
-                refreshing={refreshing}
+                refreshControl={refreshControl}
                 ref={this.setListRef}
                 removeClippedSubviews={true}
                 renderItem={this.renderItem}
@@ -148,12 +163,13 @@ export default class CustomList extends PureComponent {
     };
 
     renderSectionHeader = ({section}) => {
-        const style = getStyleFromTheme(this.props.theme);
+        const {theme, isLandscape} = this.props;
+        const style = getStyleFromTheme(theme);
 
         return (
             <View style={style.sectionWrapper}>
                 <View style={style.sectionContainer}>
-                    <Text style={style.sectionText}>{section.id}</Text>
+                    <Text style={[style.sectionText, padding(isLandscape)]}>{section.id}</Text>
                 </View>
             </View>
         );

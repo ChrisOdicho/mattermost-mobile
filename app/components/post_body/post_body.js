@@ -6,24 +6,25 @@ import PropTypes from 'prop-types';
 import {
     Keyboard,
     ScrollView,
-    TouchableOpacity,
     View,
 } from 'react-native';
 import {intlShape} from 'react-intl';
 import Icon from 'react-native-vector-icons/Ionicons';
-
 import {Posts} from 'mattermost-redux/constants';
 
 import CombinedSystemMessage from 'app/components/combined_system_message';
+import {renderSystemMessage} from './system_message_helpers';
 import FormattedText from 'app/components/formatted_text';
 import Markdown from 'app/components/markdown';
 import MarkdownEmoji from 'app/components/markdown/markdown_emoji';
 import ShowMoreButton from 'app/components/show_more_button';
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
 
 import {emptyFunction} from 'app/utils/general';
 import {getMarkdownTextStyles, getMarkdownBlockStyles} from 'app/utils/markdown';
 import {preventDoubleTap} from 'app/utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
+import {showModalOverCurrentContext} from 'app/actions/navigation';
 
 import telemetry from 'app/telemetry';
 
@@ -56,7 +57,6 @@ export default class PostBody extends PureComponent {
         metadata: PropTypes.object,
         managedConfig: PropTypes.object,
         message: PropTypes.string,
-        navigator: PropTypes.object.isRequired,
         onFailedPostPress: PropTypes.func,
         onHashtagPress: PropTypes.func,
         onPermalinkPress: PropTypes.func,
@@ -130,31 +130,24 @@ export default class PostBody extends PureComponent {
     openLongPost = preventDoubleTap(() => {
         const {
             managedConfig,
-            navigator,
             onHashtagPress,
             onPermalinkPress,
             post,
         } = this.props;
-
+        const screen = 'LongPost';
+        const passProps = {
+            postId: post.id,
+            managedConfig,
+            onHashtagPress,
+            onPermalinkPress,
+        };
         const options = {
-            screen: 'LongPost',
-            animationType: 'none',
-            backButtonTitle: '',
-            overrideBackPress: true,
-            navigatorStyle: {
-                navBarHidden: true,
-                screenBackgroundColor: changeOpacity('#000', 0.2),
-                modalPresentationStyle: 'overCurrentContext',
-            },
-            passProps: {
-                postId: post.id,
-                managedConfig,
-                onHashtagPress,
-                onPermalinkPress,
+            layout: {
+                backgroundColor: changeOpacity('#000', 0.2),
             },
         };
 
-        navigator.showModal(options);
+        showModalOverCurrentContext(screen, passProps, options);
     });
 
     showPostOptions = () => {
@@ -168,7 +161,6 @@ export default class PostBody extends PureComponent {
             isPostEphemeral,
             isSystemMessage,
             managedConfig,
-            navigator,
             post,
             showAddReaction,
             location,
@@ -182,32 +174,22 @@ export default class PostBody extends PureComponent {
             return;
         }
 
-        const options = {
-            screen: 'PostOptions',
-            animationType: 'none',
-            backButtonTitle: '',
-            navigatorStyle: {
-                navBarHidden: true,
-                navBarTransparent: true,
-                screenBackgroundColor: 'transparent',
-                modalPresentationStyle: 'overCurrentContext',
-            },
-            passProps: {
-                canDelete,
-                channelIsReadOnly,
-                hasBeenDeleted,
-                isFlagged,
-                isSystemMessage,
-                post,
-                managedConfig,
-                showAddReaction,
-                location,
-            },
+        const screen = 'PostOptions';
+        const passProps = {
+            canDelete,
+            channelIsReadOnly,
+            hasBeenDeleted,
+            isFlagged,
+            isSystemMessage,
+            post,
+            managedConfig,
+            showAddReaction,
+            location,
         };
 
         Keyboard.dismiss();
         requestAnimationFrame(() => {
-            navigator.showModal(options);
+            showModalOverCurrentContext(screen, passProps);
         });
     };
 
@@ -231,7 +213,6 @@ export default class PostBody extends PureComponent {
         return (
             <PostAddChannelMember
                 baseTextStyle={messageStyle}
-                navigator={navigator}
                 onPostPress={onPress}
                 textStyles={textStyles}
                 postId={postProps.add_channel_member.post_id}
@@ -246,7 +227,6 @@ export default class PostBody extends PureComponent {
         const {
             fileIds,
             isFailed,
-            navigator,
             post,
             showLongPost,
         } = this.props;
@@ -267,7 +247,7 @@ export default class PostBody extends PureComponent {
                     isFailed={isFailed}
                     onLongPress={this.showPostOptions}
                     postId={post.id}
-                    navigator={navigator}
+                    isReplyPost={this.props.isReplyPost}
                 />
             );
         }
@@ -281,7 +261,6 @@ export default class PostBody extends PureComponent {
             isSystemMessage,
             message,
             metadata,
-            navigator,
             onHashtagPress,
             onPermalinkPress,
             post,
@@ -304,7 +283,6 @@ export default class PostBody extends PureComponent {
             <PostBodyAdditionalContent
                 baseTextStyle={messageStyle}
                 blockStyles={blockStyles}
-                navigator={navigator}
                 message={message}
                 metadata={metadata}
                 postId={post.id}
@@ -321,7 +299,6 @@ export default class PostBody extends PureComponent {
         const {
             hasReactions,
             isSearchResult,
-            navigator,
             post,
             showLongPost,
         } = this.props;
@@ -337,7 +314,6 @@ export default class PostBody extends PureComponent {
         return (
             <Reactions
                 postId={post.id}
-                navigator={navigator}
             />
         );
     };
@@ -356,7 +332,6 @@ export default class PostBody extends PureComponent {
             isSystemMessage,
             message,
             metadata,
-            navigator,
             onFailedPostPress,
             onHashtagPress,
             onPermalinkPress,
@@ -374,6 +349,13 @@ export default class PostBody extends PureComponent {
         const textStyles = getMarkdownTextStyles(theme);
         const messageStyle = isSystemMessage ? [style.message, style.systemMessage] : style.message;
         const isPendingOrFailedPost = isPending || isFailed;
+
+        const messageStyles = {messageStyle, textStyles};
+        const intl = this.context.intl;
+        const systemMessage = renderSystemMessage(this.props, messageStyles, intl);
+        if (systemMessage) {
+            return systemMessage;
+        }
 
         let body;
         let messageComponent;
@@ -395,7 +377,6 @@ export default class PostBody extends PureComponent {
                     allUsernames={allUsernames}
                     linkStyle={textStyles.link}
                     messageData={messageData}
-                    navigator={navigator}
                     textStyles={textStyles}
                     theme={theme}
                 />
@@ -424,7 +405,6 @@ export default class PostBody extends PureComponent {
                         isEdited={hasBeenEdited}
                         isReplyPost={isReplyPost}
                         isSearchResult={isSearchResult}
-                        navigator={navigator}
                         onHashtagPress={onHashtagPress}
                         onPermalinkPress={onPermalinkPress}
                         onPostPress={onPress}
@@ -465,16 +445,17 @@ export default class PostBody extends PureComponent {
                 <View style={replyBarStyle}/>
                 {body}
                 {isFailed &&
-                <TouchableOpacity
+                <TouchableWithFeedback
                     onPress={onFailedPostPress}
                     style={style.retry}
+                    type={'opacity'}
                 >
                     <Icon
                         name='ios-information-circle-outline'
                         size={26}
                         color={theme.errorTextColor}
                     />
-                </TouchableOpacity>
+                </TouchableWithFeedback>
                 }
             </View>
         );

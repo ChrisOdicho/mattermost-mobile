@@ -12,23 +12,22 @@ import AwesomeIcon from 'react-native-vector-icons/FontAwesome';
 
 import {preventDoubleTap} from 'app/utils/tap';
 import {makeStyleSheetFromTheme} from 'app/utils/theme';
+import {showSearchModal} from 'app/actions/navigation';
 
 export default class ChannelSearchButton extends PureComponent {
     static propTypes = {
         actions: PropTypes.shape({
             clearSearch: PropTypes.func.isRequired,
-            showSearchModal: PropTypes.func.isRequired,
         }).isRequired,
-        navigator: PropTypes.object,
         theme: PropTypes.object,
     };
 
     handlePress = preventDoubleTap(async () => {
-        const {actions, navigator} = this.props;
+        const {actions} = this.props;
 
         Keyboard.dismiss();
         await actions.clearSearch();
-        await actions.showSearchModal(navigator);
+        showSearchModal();
     });
 
     render() {

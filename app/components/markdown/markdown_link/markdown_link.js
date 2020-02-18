@@ -3,16 +3,19 @@
 
 import React, {Children, PureComponent} from 'react';
 import PropTypes from 'prop-types';
-import {Clipboard, Linking, Text} from 'react-native';
+import {Alert, Clipboard, Linking, Text} from 'react-native';
 import urlParse from 'url-parse';
 import {intlShape} from 'react-intl';
 
 import CustomPropTypes from 'app/constants/custom_prop_types';
 import {DeepLinkTypes} from 'app/constants';
+import {getCurrentServerUrl} from 'app/init/credentials';
 import mattermostManaged from 'app/mattermost_managed';
 import BottomSheet from 'app/utils/bottom_sheet';
 import {preventDoubleTap} from 'app/utils/tap';
 import {matchDeepLink, normalizeProtocol} from 'app/utils/url';
+import {alertErrorWithFallback} from 'app/utils/general';
+import {t} from 'app/utils/i18n';
 
 import Config from 'assets/config';
 
@@ -24,7 +27,7 @@ export default class MarkdownLink extends PureComponent {
         children: CustomPropTypes.Children.isRequired,
         href: PropTypes.string.isRequired,
         onPermalinkPress: PropTypes.func,
-        serverURL: PropTypes.string.isRequired,
+        serverURL: PropTypes.string,
         siteURL: PropTypes.string.isRequired,
     };
 
@@ -38,7 +41,7 @@ export default class MarkdownLink extends PureComponent {
         intl: intlShape.isRequired,
     };
 
-    handlePress = preventDoubleTap(() => {
+    handlePress = preventDoubleTap(async () => {
         const {href, onPermalinkPress, serverURL, siteURL} = this.props;
         const url = normalizeProtocol(href);
 
@@ -46,10 +49,16 @@ export default class MarkdownLink extends PureComponent {
             return;
         }
 
+        let serverUrl = serverURL;
+        if (!serverUrl) {
+            serverUrl = await getCurrentServerUrl();
+        }
+
         const match = matchDeepLink(url, serverURL, siteURL);
+
         if (match) {
             if (match.type === DeepLinkTypes.CHANNEL) {
-                this.props.actions.handleSelectChannelByName(match.channelName, match.teamName);
+                this.props.actions.handleSelectChannelByName(match.channelName, match.teamName, this.errorBadChannel);
             } else if (match.type === DeepLinkTypes.PERMALINK) {
                 onPermalinkPress(match.postId, match.teamName);
             }
@@ -57,10 +66,32 @@ export default class MarkdownLink extends PureComponent {
             Linking.canOpenURL(url).then((supported) => {
                 if (supported) {
                     Linking.openURL(url);
+                } else {
+                    const {formatMessage} = this.context.intl;
+                    Alert.alert(
+                        formatMessage({
+                            id: 'mobile.server_link.error.title',
+                            defaultMessage: 'Link Error',
+                        }),
+                        formatMessage({
+                            id: 'mobile.server_link.error.text',
+                            defaultMessage: 'The link could not be found on this server.',
+                        }),
+                    );
                 }
             });
         }
     });
+
+    errorBadChannel = () => {
+        const {intl} = this.context;
+        const message = {
+            id: t('mobile.server_link.unreachable_channel.error'),
+            defaultMessage: 'This link belongs to a deleted channel or to a channel to which you do not have access.',
+        };
+
+        alertErrorWithFallback(intl, {}, message);
+    };
 
     parseLinkLiteral = (literal) => {
         let nextLiteral = literal;

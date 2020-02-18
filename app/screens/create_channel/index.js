@@ -4,9 +4,9 @@
 import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 
-import {handleCreateChannel} from 'app/actions/views/create_channel';
-
 import {getTheme} from 'mattermost-redux/selectors/entities/preferences';
+
+import {handleCreateChannel} from 'app/actions/views/create_channel';
 import {getDimensions} from 'app/selectors/device';
 
 import CreateChannel from './create_channel';

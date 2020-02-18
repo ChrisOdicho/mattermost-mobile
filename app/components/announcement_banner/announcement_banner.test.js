@@ -17,13 +17,13 @@ describe('AnnouncementBanner', () => {
         bannerEnabled: true,
         bannerText: 'Banner Text',
         bannerTextColor: '#fff',
-        navigator: {},
         theme: Preferences.THEMES.default,
+        isLandscape: false,
     };
 
     test('should match snapshot', () => {
         const wrapper = shallow(
-            <AnnouncementBanner {...baseProps}/>
+            <AnnouncementBanner {...baseProps}/>,
         );
 
         expect(wrapper.getElement()).toMatchSnapshot();

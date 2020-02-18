@@ -27,6 +27,7 @@ describe('SelectTeam', () => {
     const actions = {
         getTeams,
         handleTeamChange: jest.fn(),
+        addUserToTeam: jest.fn(),
         joinTeam: jest.fn(),
         logout: jest.fn(),
     };
@@ -34,16 +35,18 @@ describe('SelectTeam', () => {
     const baseProps = {
         actions,
         currentChannelId: 'someId',
+        currentUserIsGuest: false,
+        currentUserId: 'fakeid',
         currentUrl: 'test',
-        navigator: {
-            setOnNavigatorEvent: jest.fn(),
-        },
         userWithoutTeams: false,
         teams: [],
         theme: Preferences.THEMES.default,
         teamsRequest: {
             status: RequestStatus.FAILURE,
         },
+        componentId: 'component-id',
+        isLandscape: false,
+        serverVersion: '5.18',
     };
 
     test('should match snapshot for fail of teams', async () => {
@@ -78,5 +81,56 @@ describe('SelectTeam', () => {
         expect(wrapper.state('page')).toEqual(1);
         wrapper.update();
         expect(wrapper.getElement()).toMatchSnapshot();
+    });
+
+    test('should match snapshot when user is a guest', async () => {
+        const props = {
+            ...baseProps,
+            currentUserIsGuest: true,
+            teams: [{
+                id: 'kemjcpu9bi877yegqjs18ndp4r',
+                invite_id: 'ojsnudhqzbfzpk6e4n6ip1hwae',
+                name: 'test',
+            }],
+            teamsRequest: {
+                status: RequestStatus.SUCCESS,
+            },
+        };
+
+        const wrapper = shallow(
+            <SelectTeam {...props}/>,
+        );
+        await getTeams();
+        expect(wrapper.getElement()).toMatchSnapshot();
+    });
+
+    test('should call joinTeam versions prior to 5.18', async () => {
+        const props = {
+            ...baseProps,
+            serverVersion: '5.17',
+        };
+
+        const wrapper = shallow(
+            <SelectTeam {...props}/>,
+        );
+        wrapper.instance().onSelectTeam({id: 'test_id', invite_id: 'test_invite_id'});
+
+        expect(props.actions.joinTeam).toBeCalledWith('test_invite_id', 'test_id');
+        expect(props.actions.addUserToTeam).not.toBeCalled();
+    });
+
+    test('should call joinTeam versions posterior to 5.18', async () => {
+        const props = {
+            ...baseProps,
+            serverVersion: '5.18',
+        };
+
+        const wrapper = shallow(
+            <SelectTeam {...props}/>,
+        );
+        wrapper.instance().onSelectTeam({id: 'test_id', invite_id: 'test_invite_id'});
+
+        expect(props.actions.joinTeam).not.toBeCalled();
+        expect(props.actions.addUserToTeam).toBeCalledWith('test_id', 'fakeid');
     });
 });

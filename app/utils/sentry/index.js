@@ -2,8 +2,6 @@
 // See LICENSE.txt for license information.
 
 import {Platform} from 'react-native';
-import {Sentry} from 'react-native-sentry';
-
 import Config from 'assets/config';
 
 import {Client4} from 'mattermost-redux/client';
@@ -21,21 +19,24 @@ export const LOGGER_REDUX = 'redux';
 export const BREADCRUMB_UNCAUGHT_APP_ERROR = 'uncaught-app-error';
 export const BREADCRUMB_UNCAUGHT_NON_ERROR = 'uncaught-non-error';
 
+let Sentry;
 export function initializeSentry() {
     if (!Config.SentryEnabled) {
-        // Still allow Sentry to configure itself in case other code tries to call it
-        Sentry.config('');
-
         return;
+    }
+
+    if (!Sentry) {
+        Sentry = require('@sentry/react-native');
     }
 
     const dsn = getDsn();
 
     if (!dsn) {
         console.warn('Sentry is enabled, but not configured on this platform'); // eslint-disable-line no-console
+        return;
     }
 
-    Sentry.config(dsn, Config.SentryOptions).install();
+    Sentry.init({dsn, ...Config.SentryOptions});
 }
 
 function getDsn() {
@@ -135,7 +136,7 @@ export function captureNonErrorAsBreadcrumb(obj, isFatal) {
     }
 
     try {
-        Sentry.captureBreadcrumb(breadcrumb);
+        Sentry.addBreadcrumb(breadcrumb);
     } catch (e) {
         // Do nothing since this is only here to make sure we don't crash when handling an exception
         console.warn('Failed to capture breadcrumb of non-error', e); // eslint-disable-line no-console
@@ -155,17 +156,34 @@ function capture(captureFunc, store) {
 
         // Don't contact Sentry if we're connected to a server with diagnostics disabled. Note that this will
         // still log if we're not connected to any server.
-        if (config.EnableDiagnostics != null && config.EnableDiagnostics !== 'true') {
+        if (config && config.EnableDiagnostics != null && config.EnableDiagnostics !== 'true') {
             return;
         }
 
-        Sentry.setUserContext(getUserContext(state));
-        Sentry.setExtraContext(getExtraContext(state));
-        Sentry.setTagsContext(getBuildTags(state));
+        let hasUserContext = false;
+        const userContext = getUserContext(state);
+        if (Object.keys(userContext).length) {
+            hasUserContext = true;
+            Sentry.setUserContext(userContext);
+        }
 
-        console.warn('Capturing with Sentry at ' + getDsn() + '...'); // eslint-disable-line no-console
+        const extraContext = getExtraContext(state);
+        if (Object.keys(extraContext).length) {
+            Sentry.setExtraContext(extraContext);
+        }
 
-        captureFunc();
+        const buildTags = getBuildTags(state);
+        if (Object.keys(buildTags).length) {
+            Sentry.setTagsContext(buildTags);
+        }
+
+        if (hasUserContext) {
+            console.warn('Capturing with Sentry at ' + getDsn() + '...'); // eslint-disable-line no-console
+
+            captureFunc();
+        } else {
+            console.warn('No user context, skipping capture'); // eslint-disable-line no-console
+        }
     } catch (e) {
         // Don't want this to get into an infinite loop again...
         console.warn('Exception occured while sending to Sentry'); // eslint-disable-line no-console

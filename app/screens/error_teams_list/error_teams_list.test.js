@@ -10,10 +10,6 @@ import FailedNetworkAction from 'app/components/failed_network_action';
 import ErrorTeamsList from './error_teams_list';
 
 describe('ErrorTeamsList', () => {
-    const navigator = {
-        setOnNavigatorEvent: () => {}, // eslint-disable-line no-empty-function
-    };
-
     const loadMe = async () => {
         return {
             data: {},
@@ -27,13 +23,13 @@ describe('ErrorTeamsList', () => {
             logout: () => {}, // eslint-disable-line no-empty-function
             selectDefaultTeam: () => {}, // eslint-disable-line no-empty-function
         },
+        componentId: 'component-id',
         theme: Preferences.THEMES.default,
-        navigator,
     };
 
     test('should match snapshot', () => {
         const wrapper = shallow(
-            <ErrorTeamsList {...baseProps}/>
+            <ErrorTeamsList {...baseProps}/>,
         );
         expect(wrapper.getElement()).toMatchSnapshot();
     });
@@ -43,6 +39,7 @@ describe('ErrorTeamsList', () => {
         const selectDefaultTeam = jest.fn();
         const logout = jest.fn();
         const actions = {
+            ...baseProps.actions,
             loadMe,
             logout,
             selectDefaultTeam,
@@ -55,7 +52,7 @@ describe('ErrorTeamsList', () => {
         };
 
         const wrapper = shallow(
-            <ErrorTeamsList {...newProps}/>
+            <ErrorTeamsList {...newProps}/>,
         );
 
         wrapper.find(FailedNetworkAction).props().onRetry();

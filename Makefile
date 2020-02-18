@@ -7,7 +7,6 @@
 .PHONY: build-pr can-build-pr prepare-pr
 .PHONY: test help
 
-POD := $(shell which pod 2> /dev/null)
 OS := $(shell sh -c 'uname -s 2>/dev/null')
 BASE_ASSETS = $(shell find assets/base -type d) $(shell find assets/base -type f -name '*')
 OVERRIDE_ASSETS = $(shell find assets/override -type d 2> /dev/null) $(shell find assets/override -type f -name '*' 2> /dev/null)
@@ -33,13 +32,11 @@ npm-ci: package.json
 
 .podinstall:
 ifeq ($(OS), Darwin)
-ifdef POD
+	@echo "Required version of Cocoapods is not installed"
+	@echo Installing gems;
+	@bundle install
 	@echo Getting Cocoapods dependencies;
-	@cd ios && pod install;
-else
-	@echo "Cocoapods is not installed https://cocoapods.org/"
-	@exit 1
-endif
+	@cd ios && bundle exec pod install;
 endif
 	@touch $@
 
@@ -64,24 +61,18 @@ check-style: node_modules ## Runs eslint
 clean: ## Cleans dependencies, previous builds and temp files
 	@echo Cleaning started
 
-	@rm -rf node_modules
 	@rm -f .podinstall
+	@rm -rf ios/Pods
+	@rm -rf node_modules
 	@rm -rf dist
 	@rm -rf ios/build
-	@rm -rf ios/Pods
 	@rm -rf android/app/build
 
 	@echo Cleanup finished
 
 post-install:
-	@# Need to copy custom RNDocumentPicker.m that implements direct access to the document picker in iOS
-	@cp ./native_modules/RNDocumentPicker.m node_modules/react-native-document-picker/ios/RNDocumentPicker/RNDocumentPicker.m
-
-	@# Need to copy custom RNCookieManagerIOS.m that fixes a crash when cookies does not have expiration date set
-	@cp ./native_modules/RNCookieManagerIOS.m node_modules/react-native-cookies/ios/RNCookieManagerIOS/RNCookieManagerIOS.m
-
-	@# Need to copy custom RNCNetInfo.m that checks for internet connectivity instead of reaching a host by default
-	@cp ./native_modules/RNCNetInfo.m node_modules/@react-native-community/netinfo/ios/RNCNetInfo.m
+	@./node_modules/.bin/patch-package
+	@./node_modules/.bin/jetify
 
 	@rm -f node_modules/intl/.babelrc
 	@# Hack to get react-intl and its dependencies to work with react-native
@@ -90,12 +81,6 @@ post-install:
 	@sed -i'' -e 's|"./lib/locales": false|"./lib/locales": "./lib/locales"|g' node_modules/intl-messageformat/package.json
 	@sed -i'' -e 's|"./lib/locales": false|"./lib/locales": "./lib/locales"|g' node_modules/intl-relativeformat/package.json
 	@sed -i'' -e 's|"./locale-data/complete.js": false|"./locale-data/complete.js": "./locale-data/complete.js"|g' node_modules/intl/package.json
-	@sed -i'' -e "s|super.onBackPressed();|this.moveTaskToBack(true);|g" node_modules/react-native-navigation/android/app/src/main/java/com/reactnativenavigation/controllers/NavigationActivity.java
-	@sed -i'' -e "s|compile 'com.facebook.react:react-native:0.17.+'|compile 'com.facebook.react:react-native:+'|g" node_modules/react-native-bottom-sheet/android/build.gradle
-	@if [ $(shell grep "const Platform" node_modules/react-native/Libraries/Lists/VirtualizedList.js | grep -civ grep) -eq 0 ]; then \
-		sed $ -i'' -e "s|const ReactNative = require('ReactNative');|const ReactNative = require('ReactNative');`echo $\\\\\\r;`const Platform = require('Platform');|g" node_modules/react-native/Libraries/Lists/VirtualizedList.js; \
-	fi
-	@sed -i'' -e 's|transform: \[{scaleY: -1}\],|...Platform.select({android: {transform: \[{perspective: 1}, {scaleY: -1}\]}, ios: {transform: \[{scaleY: -1}\]}}),|g' node_modules/react-native/Libraries/Lists/VirtualizedList.js
 
 start: | pre-run ## Starts the React Native packager server
 	$(call start_packager)
@@ -161,7 +146,7 @@ run-android: | check-device-android pre-run prepare-android-build ## Runs the ap
 	@if [ $(shell ps -ef | grep -i "cli.js start" | grep -civ grep) -eq 0 ]; then \
         echo Starting React Native packager server; \
     	npm start & echo Running Android app in development; \
-    	if [ ! -z ${VARIANT} ]; then \
+	if [ ! -z ${VARIANT} ]; then \
     		react-native run-android --no-packager --variant=${VARIANT}; \
     	else \
     		react-native run-android --no-packager; \
@@ -197,14 +182,7 @@ build-android: | stop pre-build check-style i18n-extract-ci prepare-android-buil
 
 unsigned-ios: stop pre-build check-style ## Build an unsigned version of the iOS app
 	$(call start_packager)
-	@echo "Building unsigned iOS app"
 	@cd fastlane && NODE_ENV=production bundle exec fastlane ios unsigned
-	@mkdir -p build-ios
-	@cd ios/ && xcodebuild -workspace Mattermost.xcworkspace/ -scheme Mattermost -sdk iphoneos -configuration Release -parallelizeTargets -resultBundlePath ../build-ios/result -derivedDataPath ../build-ios/ CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
-	@cd build-ios/ && mkdir -p Payload && cp -R Build/Products/Release-iphoneos/Mattermost.app Payload/ && zip -r Mattermost-unsigned.ipa Payload/
-	@mv build-ios/Mattermost-unsigned.ipa .
-	@cd fastlane && bundle exec fastlane upload_file_to_s3 file:Mattermost-unsigned.ipa os_type:iOS
-	@rm -rf build-ios/
 	$(call stop_packager)
 
 ios-sim-x86_64: stop pre-build check-style ## Build an unsigned x86_64 version of the iOS app for iPhone simulator
@@ -220,12 +198,7 @@ ios-sim-x86_64: stop pre-build check-style ## Build an unsigned x86_64 version o
 	$(call stop_packager)
 
 unsigned-android: stop pre-build check-style prepare-android-build ## Build an unsigned version of the Android app
-	$(call start_packager)
-	@echo "Building unsigned Android app"
 	@cd fastlane && NODE_ENV=production bundle exec fastlane android unsigned
-	@mv android/app/build/outputs/apk/unsigned/app-unsigned-unsigned.apk ./Mattermost-unsigned.apk
-	@cd fastlane && bundle exec fastlane upload_file_to_s3 file:Mattermost-unsigned.apk os_type:Android
-	$(call stop_packager)
 
 test: | pre-run check-style ## Runs tests
 	@npm test

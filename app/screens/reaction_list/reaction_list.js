@@ -4,6 +4,7 @@
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {View} from 'react-native';
+import {Navigation} from 'react-native-navigation';
 
 import {intlShape} from 'react-intl';
 
@@ -17,6 +18,7 @@ import {
     getUniqueUserIds,
     sortReactions,
 } from 'app/utils/reaction';
+import {dismissModal} from 'app/actions/navigation';
 
 import ReactionHeader from './reaction_header';
 import ReactionRow from './reaction_row';
@@ -28,11 +30,11 @@ export default class ReactionList extends PureComponent {
         actions: PropTypes.shape({
             getMissingProfilesByIds: PropTypes.func.isRequired,
         }).isRequired,
-        navigator: PropTypes.object,
         reactions: PropTypes.object.isRequired,
         theme: PropTypes.object.isRequired,
         teammateNameDisplay: PropTypes.string,
         userProfiles: PropTypes.array,
+        isLandscape: PropTypes.bool.isRequired,
     };
 
     static defaultProps = {
@@ -58,8 +60,6 @@ export default class ReactionList extends PureComponent {
             userProfiles,
             userProfilesById: generateUserProfilesById(userProfiles),
         };
-
-        props.navigator.setOnNavigatorEvent(this.onNavigatorEvent);
     }
 
     static getDerivedStateFromProps(nextProps, prevState) {
@@ -90,6 +90,8 @@ export default class ReactionList extends PureComponent {
     }
 
     componentDidMount() {
+        this.navigationEventListener = Navigation.events().bindComponent(this);
+
         this.getMissingProfiles();
     }
 
@@ -99,18 +101,14 @@ export default class ReactionList extends PureComponent {
         }
     }
 
-    onNavigatorEvent = (event) => {
-        if (event.type === 'NavBarButtonPress') {
-            if (event.id === 'close-reaction-list') {
-                this.close();
-            }
+    navigationButtonPressed({buttonId}) {
+        if (buttonId === 'close-reaction-list') {
+            this.close();
         }
-    };
+    }
 
     close = () => {
-        this.props.navigator.dismissModal({
-            animationType: 'none',
-        });
+        dismissModal();
     };
 
     getMissingProfiles = () => {
@@ -138,7 +136,6 @@ export default class ReactionList extends PureComponent {
 
     renderReactionRows = () => {
         const {
-            navigator,
             teammateNameDisplay,
             theme,
         } = this.props;
@@ -158,7 +155,6 @@ export default class ReactionList extends PureComponent {
             >
                 <ReactionRow
                     emojiName={emojiName}
-                    navigator={navigator}
                     teammateNameDisplay={teammateNameDisplay}
                     theme={theme}
                     user={userProfilesById[userId]}
@@ -169,7 +165,7 @@ export default class ReactionList extends PureComponent {
     };
 
     renderHeader = (forwardedRef) => {
-        const {theme} = this.props;
+        const {theme, isLandscape} = this.props;
         const {selected, sortedReactionsForHeader} = this.state;
 
         return (
@@ -179,12 +175,14 @@ export default class ReactionList extends PureComponent {
                 reactions={sortedReactionsForHeader}
                 theme={theme}
                 forwardedRef={forwardedRef}
+                isLandscape={isLandscape}
             />
         );
     };
 
     render() {
-        const style = getStyleSheet(this.props.theme);
+        const {theme} = this.props;
+        const style = getStyleSheet(theme);
 
         return (
             <View style={style.flex}>
@@ -194,6 +192,7 @@ export default class ReactionList extends PureComponent {
                     initialPosition={0.55}
                     header={this.renderHeader}
                     headerHeight={37.5}
+                    theme={theme}
                 >
                     {this.renderReactionRows()}
                 </SlideUpPanel>

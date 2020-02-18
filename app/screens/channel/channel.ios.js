@@ -7,7 +7,6 @@ import {KeyboardTrackingView} from 'react-native-keyboard-tracking-view';
 
 import Autocomplete, {AUTOCOMPLETE_MAX_HEIGHT} from 'app/components/autocomplete';
 import ChannelLoader from 'app/components/channel_loader';
-import FileUploadPreview from 'app/components/file_upload_preview';
 import NetworkIndicator from 'app/components/network_indicator';
 import PostTextbox from 'app/components/post_textbox';
 import SafeAreaView from 'app/components/safe_area_view';
@@ -27,33 +26,27 @@ const CHANNEL_POST_TEXTBOX_VALUE_CHANGE = 'onChannelTextBoxValueChange';
 export default class ChannelIOS extends ChannelBase {
     render() {
         const {height} = Dimensions.get('window');
-        const {
-            currentChannelId,
-            navigator,
-        } = this.props;
+        const {currentChannelId} = this.props;
 
         const channelLoaderStyle = [style.channelLoader, {height}];
-        if ((DeviceTypes.IS_IPHONE_X || DeviceTypes.IS_TABLET)) {
+        if ((DeviceTypes.IS_IPHONE_WITH_INSETS || DeviceTypes.IS_TABLET)) {
             channelLoaderStyle.push(style.iOSHomeIndicator);
         }
 
         const drawerContent = (
             <React.Fragment>
-                <SafeAreaView navigator={navigator}>
+                <SafeAreaView>
                     <StatusBar/>
                     <NetworkIndicator/>
                     <ChannelNavBar
-                        navigator={navigator}
                         openChannelDrawer={this.openChannelSidebar}
                         openSettingsDrawer={this.openSettingsSidebar}
                         onPress={this.goToChannelInfo}
                     />
                     <ChannelPostList
-                        navigator={navigator}
                         updateNativeScrollView={this.updateNativeScrollView}
                     />
                     <View nativeID={ACCESSORIES_CONTAINER_NATIVE_ID}>
-                        <FileUploadPreview/>
                         <Autocomplete
                             maxHeight={AUTOCOMPLETE_MAX_HEIGHT}
                             onChangeText={this.handleAutoComplete}
@@ -65,7 +58,7 @@ export default class ChannelIOS extends ChannelBase {
                         height={height}
                         style={channelLoaderStyle}
                     />
-                    {LocalConfig.EnableMobileClientUpgrade && <ClientUpgradeListener navigator={navigator}/>}
+                    {LocalConfig.EnableMobileClientUpgrade && <ClientUpgradeListener/>}
                 </SafeAreaView>
                 <KeyboardTrackingView
                     ref={this.keyboardTracker}
@@ -76,7 +69,7 @@ export default class ChannelIOS extends ChannelBase {
                         cursorPositionEvent={CHANNEL_POST_TEXTBOX_CURSOR_CHANGE}
                         valueEvent={CHANNEL_POST_TEXTBOX_VALUE_CHANGE}
                         ref={this.postTextbox}
-                        navigator={navigator}
+                        screenId={this.props.componentId}
                     />
                 </KeyboardTrackingView>
             </React.Fragment>

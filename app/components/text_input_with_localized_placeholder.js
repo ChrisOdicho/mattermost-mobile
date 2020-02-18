@@ -6,22 +6,32 @@ import PropTypes from 'prop-types';
 import {intlShape} from 'react-intl';
 import {TextInput} from 'react-native';
 
+import {changeOpacity} from 'app/utils/theme';
+
 export default class TextInputWithLocalizedPlaceholder extends PureComponent {
     static propTypes = {
         ...TextInput.propTypes,
         placeholder: PropTypes.object.isRequired,
     };
 
+    static defaultProps = {
+        placeholderTextColor: changeOpacity('#000', 0.5),
+    };
+
     static contextTypes = {
         intl: intlShape.isRequired,
     };
 
+    setInputRef = (ref) => {
+        this.inputRef = ref;
+    }
+
     blur = () => {
-        this.refs.input.blur();
+        this.inputRef.blur();
     };
 
     focus = () => {
-        this.refs.input.focus();
+        this.inputRef.focus();
     };
 
     render() {
@@ -34,7 +44,7 @@ export default class TextInputWithLocalizedPlaceholder extends PureComponent {
 
         return (
             <TextInput
-                ref='input'
+                ref={this.setInputRef}
                 {...otherProps}
                 placeholder={placeholderString}
                 disableFullscreenUI={true}

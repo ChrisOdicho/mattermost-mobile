@@ -14,11 +14,12 @@ describe('ReactionHeader', () => {
         onSelectReaction: jest.fn(),
         reactions: [{name: 'smile', count: 2}, {name: '+1', count: 1}],
         theme: Preferences.THEMES.default,
+        isLandscape: false,
     };
 
     test('should match snapshot', () => {
         const wrapper = shallow(
-            <ReactionHeader {...baseProps}/>
+            <ReactionHeader {...baseProps}/>,
         );
 
         expect(wrapper.getElement()).toMatchSnapshot();
@@ -27,7 +28,7 @@ describe('ReactionHeader', () => {
 
     test('should match snapshot, renderContent', () => {
         const wrapper = shallow(
-            <ReactionHeader {...baseProps}/>
+            <ReactionHeader {...baseProps}/>,
         );
 
         expect(wrapper.instance().renderReactionHeaderItems()).toMatchSnapshot();
@@ -39,7 +40,7 @@ describe('ReactionHeader', () => {
             <ReactionHeader
                 {...baseProps}
                 onSelectReaction={onSelectReaction}
-            />
+            />,
         );
 
         wrapper.instance().handleOnPress();

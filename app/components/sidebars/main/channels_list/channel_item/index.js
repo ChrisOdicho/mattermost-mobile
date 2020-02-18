@@ -14,8 +14,9 @@ import {getTheme, getTeammateNameDisplaySetting} from 'mattermost-redux/selector
 import {getCurrentUserId, getUser} from 'mattermost-redux/selectors/entities/users';
 import {getUserIdFromChannelName, isChannelMuted} from 'mattermost-redux/utils/channel_utils';
 import {displayUsername} from 'mattermost-redux/utils/user_utils';
-
+import {isLandscape} from 'app/selectors/device';
 import {getDraftForChannel} from 'app/selectors/views';
+import {isGuest as isGuestUser} from 'app/utils/users';
 
 import ChannelItem from './channel_item';
 
@@ -30,18 +31,20 @@ function makeMapStateToProps() {
 
         let displayName = channel.display_name;
         let isBot = false;
+        let isGuest = false;
+        let isArchived = channel.delete_at > 0;
 
         if (channel.type === General.DM_CHANNEL) {
-            if (ownProps.isSearchResult) {
-                isBot = Boolean(channel.isBot);
-            } else {
-                const teammateId = getUserIdFromChannelName(currentUserId, channel.name);
-                const teammate = getUser(state, teammateId);
+            const teammateId = getUserIdFromChannelName(currentUserId, channel.name);
+            const teammate = getUser(state, teammateId);
+
+            isBot = Boolean(ownProps.isSearchResult ? channel.isBot : teammate?.is_bot); //eslint-disable-line camelcase
+
+            if (teammate) {
                 const teammateNameDisplay = getTeammateNameDisplaySetting(state);
                 displayName = displayUsername(teammate, teammateNameDisplay, false);
-                if (teammate && teammate.is_bot) {
-                    isBot = true;
-                }
+                isArchived = teammate.delete_at > 0;
+                isGuest = isGuestUser(teammate) || false;
             }
         }
 
@@ -72,6 +75,7 @@ function makeMapStateToProps() {
             channel,
             currentChannelId,
             displayName,
+            isArchived,
             isChannelMuted: isChannelMuted(member),
             currentUserId,
             hasDraft: Boolean(channelDraft.draft.trim() || channelDraft.files.length),
@@ -81,6 +85,8 @@ function makeMapStateToProps() {
             theme: getTheme(state),
             unreadMsgs,
             isBot,
+            isLandscape: isLandscape(state),
+            isGuest,
         };
     };
 }

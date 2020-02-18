@@ -1,26 +1,26 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {Component} from 'react';
+import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {
     FlatList,
     Platform,
     Text,
-    TouchableOpacity,
     View,
 } from 'react-native';
 
-import {isMinimumServerVersion} from 'mattermost-redux/utils/helpers';
-
 import AutocompleteDivider from 'app/components/autocomplete/autocomplete_divider';
 import Emoji from 'app/components/emoji';
+import TouchableWithFeedback from 'app/components/touchable_with_feedback';
+import {BuiltInEmojis} from 'app/utils/emojis';
+import {getEmojiByName, compareEmojis} from 'app/utils/emoji_utils';
 import {makeStyleSheetFromTheme} from 'app/utils/theme';
 
 const EMOJI_REGEX = /(^|\s|^\+|^-)(:([^:\s]*))$/i;
 const EMOJI_REGEX_WITHOUT_PREFIX = /\B(:([^:\s]*))$/i;
 
-export default class EmojiSuggestion extends Component {
+export default class EmojiSuggestion extends PureComponent {
     static propTypes = {
         actions: PropTypes.shape({
             addReactionToLatestPost: PropTypes.func.isRequired,
@@ -36,7 +36,7 @@ export default class EmojiSuggestion extends Component {
         onResultCountChange: PropTypes.func.isRequired,
         rootId: PropTypes.string,
         value: PropTypes.string,
-        serverVersion: PropTypes.string,
+        nestedScrollEnabled: PropTypes.bool,
     };
 
     static defaultProps = {
@@ -77,35 +77,15 @@ export default class EmojiSuggestion extends Component {
         const oldMatchTerm = this.matchTerm;
         this.matchTerm = match[3] || '';
 
-        // If we're server version 4.7 or higher
-        if (isMinimumServerVersion(this.props.serverVersion, 4, 7)) {
-            if (this.matchTerm !== oldMatchTerm && this.matchTerm.length) {
-                this.props.actions.autocompleteCustomEmojis(this.matchTerm);
-                return;
-            }
-
-            if (this.matchTerm.length) {
-                this.handleFuzzySearch(this.matchTerm, nextProps);
-            } else {
-                const initialEmojis = [...nextProps.emojis];
-                initialEmojis.splice(0, 300);
-                const data = initialEmojis.sort();
-
-                this.setEmojiData(data);
-            }
-
+        if (this.matchTerm !== oldMatchTerm && this.matchTerm.length) {
+            this.props.actions.autocompleteCustomEmojis(this.matchTerm);
             return;
         }
 
-        // If we're server version 4.6 or lower
-        if (this.matchTerm !== oldMatchTerm) {
+        if (this.matchTerm.length) {
             this.handleFuzzySearch(this.matchTerm, nextProps);
-        } else if (!this.matchTerm.length) {
-            const initialEmojis = [...nextProps.emojis];
-            initialEmojis.splice(0, 300);
-            const data = initialEmojis.sort();
-
-            this.setEmojiData(data);
+        } else {
+            this.setEmojiData(nextProps.emojis);
         }
     }
 
@@ -114,13 +94,18 @@ export default class EmojiSuggestion extends Component {
 
         const results = await fuse.search(matchTerm.toLowerCase());
         const data = results.map((index) => emojis[index]);
-        this.setEmojiData(data);
+        this.setEmojiData(data, matchTerm);
     };
 
-    setEmojiData = (data) => {
+    setEmojiData = (data, matchTerm = null) => {
+        let sorter = compareEmojis;
+        if (matchTerm) {
+            sorter = (a, b) => compareEmojis(a, b, matchTerm);
+        }
+
         this.setState({
             active: data.length > 0,
-            dataSource: data,
+            dataSource: data.sort(sorter),
         });
 
         this.props.onResultCountChange(data.length);
@@ -137,10 +122,16 @@ export default class EmojiSuggestion extends Component {
             // We are going to set a double : on iOS to prevent the auto correct from taking over and replacing it
             // with the wrong value, this is a hack but I could not found another way to solve it
             let completedDraft;
+            let prefix = ':';
             if (Platform.OS === 'ios') {
-                completedDraft = emojiPart.replace(EMOJI_REGEX_WITHOUT_PREFIX, `::${emoji}: `);
+                prefix = '::';
+            }
+
+            const emojiData = getEmojiByName(emoji);
+            if (emojiData?.filename && !BuiltInEmojis.includes(emojiData.filename)) {
+                completedDraft = emojiPart.replace(EMOJI_REGEX_WITHOUT_PREFIX, String.fromCodePoint(parseInt(emojiData.filename, 16)));
             } else {
-                completedDraft = emojiPart.replace(EMOJI_REGEX_WITHOUT_PREFIX, `:${emoji}: `);
+                completedDraft = emojiPart.replace(EMOJI_REGEX_WITHOUT_PREFIX, `${prefix}${emoji}: `);
             }
 
             if (value.length > cursorPosition) {
@@ -149,7 +140,7 @@ export default class EmojiSuggestion extends Component {
 
             onChangeText(completedDraft);
 
-            if (Platform.OS === 'ios') {
+            if (Platform.OS === 'ios' && (!emojiData?.filename || BuiltInEmojis.includes(emojiData?.filename))) {
                 // This is the second part of the hack were we replace the double : with just one
                 // after the auto correct vanished
                 setTimeout(() => {
@@ -170,25 +161,27 @@ export default class EmojiSuggestion extends Component {
         const style = getStyleFromTheme(this.props.theme);
 
         return (
-            <TouchableOpacity
+            <TouchableWithFeedback
                 onPress={() => this.completeSuggestion(item)}
                 style={style.row}
+                type={'opacity'}
             >
                 <View style={style.emoji}>
                     <Emoji
                         emojiName={item}
+                        textStyle={style.emojiText}
                         size={20}
                     />
                 </View>
                 <Text style={style.emojiName}>{`:${item}:`}</Text>
-            </TouchableOpacity>
+            </TouchableWithFeedback>
         );
     };
 
     getItemLayout = ({index}) => ({length: 40, offset: 40 * index, index})
 
     render() {
-        const {maxListHeight, theme} = this.props;
+        const {maxListHeight, theme, nestedScrollEnabled} = this.props;
 
         if (!this.state.active) {
             // If we are not in an active state return null so nothing is rendered
@@ -209,6 +202,7 @@ export default class EmojiSuggestion extends Component {
                 ItemSeparatorComponent={AutocompleteDivider}
                 pageSize={10}
                 initialListSize={10}
+                nestedScrollEnabled={nestedScrollEnabled}
             />
         );
     }
@@ -222,6 +216,10 @@ const getStyleFromTheme = makeStyleSheetFromTheme((theme) => {
         emojiName: {
             fontSize: 13,
             color: theme.centerChannelColor,
+        },
+        emojiText: {
+            color: '#000',
+            fontWeight: 'bold',
         },
         listView: {
             flex: 1,
